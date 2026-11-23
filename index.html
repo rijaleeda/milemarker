@@ -125,6 +125,25 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,s
 #auth{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:17px;padding:20px;width:min(480px,100%);max-height:90dvh;overflow:auto}
 #auth h2{font-size:1.6rem;font-weight:900;margin-bottom:6px}#auth ul{margin:8px 0 14px;padding-left:20px}#auth li{margin:4px 0}
 #gbtn{min-height:48px;margin:12px 0}
+.tabs{display:flex;gap:6px;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:12px}
+.tabs button{flex:1;min-height:44px;border:0;border-radius:11px;background:transparent;color:var(--ink);font-weight:800;cursor:pointer}
+.tabs button.on{background:var(--paper);box-shadow:0 2px 8px #062b4418}
+.ask{background:var(--warning);border:1px solid var(--yellow);border-radius:16px;padding:14px 16px;margin:0 0 12px}
+.stack{display:grid;gap:8px}
+.packcat summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;min-height:44px;list-style:none}
+.packcat summary::-webkit-details-marker{display:none}.pc-h{font-size:1.15rem;font-weight:800}
+.plist{list-style:none;margin:6px 0 0;padding:0}
+.pitem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
+.pitem label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;min-height:44px}
+.pitem input[type=checkbox]{width:24px;height:24px;flex:none;margin-top:1px;accent-color:var(--green)}
+.pitem small{display:block;font-size:.85rem}.pitem.done b{text-decoration:line-through;color:var(--muted)}
+.qty{font-weight:700;color:var(--green);font-size:.9rem}.pnote{color:var(--ink);background:var(--soft);border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block!important}
+.pacts{display:flex;gap:4px}.pacts .btn{min-height:38px;padding:5px 10px}
+.pnoteform,.paddform{display:flex;gap:6px;grid-column:1/-1;margin-top:6px}.paddform{margin-top:10px}
+.pnoteform input,.paddform input{flex:1;min-height:44px}
+details.saved summary{list-style:none;cursor:pointer}details.saved summary::-webkit-details-marker{display:none}
+details.saved .tl{margin:10px 0 4px}
+@media(max-width:420px){.pitem{grid-template-columns:minmax(0,1fr)}.pacts{justify-content:flex-end}}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){.load .truck{animation:none}#toast{transition:none}}
 </style>
@@ -293,15 +312,122 @@ function saveDay(i,to,miles,nextMiles){const d=plan.days[i],nx=plan.days[i+1],r=
   if(nx&&nextMiles>0){const rn=hrsOf(nx);nx.miles=nextMiles;nx.hours=+(nextMiles*rn).toFixed(1);note=`Day ${i+2} recalculated: ${nextMiles} mi`}
   else if(nx&&delta){const nm=Math.max(1,nx.miles-delta);nx.hours=+(nm*hrsOf(nx)).toFixed(1);nx.miles=nm;note=`Day ${i+2} changed to ${nm} miles to keep the trip total.`}
   edited();if(note)toast(note.length>40?`Day ${i+2} now ${nx.miles} mi`:note)}
-function edited(){plan.edited=true;ui.edit=null;if(ui.savedIx!=null){const e={id:saved[ui.savedIx].id||uid(),A:{...A},plan,at:Date.now()};saved[ui.savedIx]=e;persist();if(me)Store.saveTrip(e).catch(()=>{})}render()}
+function edited(){plan.edited=true;ui.edit=null;if(ui.savedIx!=null){const e={id:saved[ui.savedIx].id||uid(),A:{...A},plan,at:Date.now(),pack:saved[ui.savedIx].pack};saved[ui.savedIx]=e;persist();if(me)Store.saveTrip(e).catch(()=>{})}render()}
 async function findStays(i){const d=plan.days[i],st=style();ui.stayBusy=i;render();
   try{const j=await callAI(`You are an RV trip planner. Reply with JSON only, no prose, no code fences.
 List 2 or 3 real campgrounds or RV parks you are confident exist near "${d.to}" that match: ${st.stay}. Return {"stays":[{"name":string,"type":"RV park"|"State park"|"National park"|"Private campground"|"Other","hookups":"Full"|"Electric and water"|"Electric"|"None"|"Unknown","priceLow":number|null,"priceHigh":number|null,"phone":string|null,"why":string}]}. Prices are typical nightly RV-site rates in US dollars or null. phone only if you are confident it is correct, else null. why under 10 words. Plain ASCII text.`);
     const c=clean({days:[{stays:(j&&j.stays)||[]}]});if(c)d.stays=c.days[0].stays}catch(e){toast("Couldn't find stays right now")}
   ui.stayBusy=null;edited()}
 
+/* ===== packing list (inventory) for saved trips ===== */
+const DIETS=[["none","No preference"],["vegetarian","Vegetarian"],["vegan","Vegan"],["glutenfree","Gluten-free"],["dairyfree","Dairy-free"],["nutallergy","Nut allergy"],["halal","Halal"],["kosher","Kosher"],["lowsugar","Low sugar / diabetic-friendly"]];
+const PACK_CATS=["Clothes","Toiletries","Baby","Kids","Seniors","Pets","Food & drinks","Kitchen","Bedding","RV essentials","Safety & first aid","Documents & money","Electronics","Outdoor & fun"];
+const cur=()=>ui.savedIx!=null?saved[ui.savedIx]:null;
+function tripDays(e){return Math.max(1,(e.plan.days||[]).length)}
+function season(e){if(!e.A.when)return "mixed";const m=parse(e.A.when).getMonth()+1,pl=findPlace((e.plan.to&&e.plan.to.label)||e.A.to)||findPlace(e.A.to),lat=pl?pl.lat:35;
+  if((m===12||m<=2)&&lat>32||(m===3||m===11)&&lat>38)return "cold";if(m>=5&&m<=9&&lat<38||m>=6&&m<=8)return "hot";return "mild"}
+function defaultTravelers(e){const w=e.A.who||"couple";if(w==="solo")return[{name:"",age:35}];if(w==="family")return[{name:"",age:35},{name:"",age:35},{name:"",age:8}];if(w==="friends")return[{name:"",age:30},{name:"",age:30},{name:"",age:30},{name:"",age:30}];if(w==="seniors")return[{name:"",age:68},{name:"",age:68}];return[{name:"",age:35},{name:"",age:35}]}
+function buildPack(e,travelers,diet){
+  const n=travelers.length,ages=travelers.map(t=>+t.age||0),babies=ages.filter(a=>a<3).length,kids=ages.filter(a=>a>=3&&a<=12).length,teens=ages.filter(a=>a>=13&&a<=17).length,seniors=ages.filter(a=>a>=65).length;
+  const days=tripDays(e),cl=Math.min(days+1,7),sea=season(e),pets=!!e.A.pets,D=new Set(diet),out=[];
+  const add=(cat,text,qty,why)=>out.push({id:uid(),cat,text,qty:qty||"",note:"",done:false,why:why||""});
+  const each=k=>n>1?`${k} each · ${n} people`:`${k}`;
+  // Clothes
+  add("Clothes","Shirts / tops",each(cl));add("Clothes","Underwear",each(cl+1));add("Clothes","Socks",each(cl+1));
+  add("Clothes","Pants or shorts",each(Math.min(4,Math.ceil(cl/2)+1)));add("Clothes","Sleepwear",each(2));
+  add("Clothes","Walking shoes",each(1));add("Clothes","Sandals or camp shoes",each(1));add("Clothes","Rain jacket",each(1));
+  add("Clothes","Hoodie or fleece",each(1));
+  if(sea==="cold"){add("Clothes","Warm winter jacket",each(1),"Cold-weather trip");add("Clothes","Hats, gloves and scarves",each(1));add("Clothes","Thermal base layers",each(2))}
+  if(sea==="hot"){add("Clothes","Swimsuits",each(1),"Warm-weather trip");add("Clothes","Sun hats",each(1));add("Clothes","Sunglasses",each(1))}
+  if(sea==="mixed")add("Clothes","Layers for warm and cool days","","Dates not set — pack layers");
+  if(days+1>7)add("Clothes","Laundry bag and detergent pods","","Longer than a week — plan a laundry stop");else add("Clothes","Laundry bag","");
+  // Toiletries
+  add("Toiletries","Toothbrushes",String(n));add("Toiletries","Toothpaste and floss","");add("Toiletries","Shampoo, conditioner and body wash","");
+  add("Toiletries","Deodorant","");add("Toiletries","Hairbrush and hair ties","");add("Toiletries","Bath towels",String(n));add("Toiletries","Washcloths and hand towels","");
+  add("Toiletries","Sunscreen","");add("Toiletries","Insect repellent","");add("Toiletries","Lip balm","");add("Toiletries","Razor and shaving supplies","");
+  add("Toiletries","Personal medications","","Bring enough for the whole trip plus a few extra days");add("Toiletries","Glasses, contacts and solution","");add("Toiletries","Feminine products","");
+  add("Toiletries","Hand sanitizer and wipes","");
+  // Baby
+  if(babies){const dp=babies*days*8;add("Baby","Diapers",`about ${dp}`,"About 8 a day per baby — plus extras");add("Baby","Baby wipes",`${Math.max(2,Math.ceil(dp/70))} packs`);
+    add("Baby","Diaper cream","");add("Baby","Changing pad and disposal bags","");add("Baby","Formula or milk, bottles / sippy cups","");add("Baby","Baby food, pouches and snacks","");
+    add("Baby","Bibs and baby spoons","");add("Baby","Travel crib or pack 'n play + sheet","");add("Baby","Sleep sack and favorite blanket","");add("Baby","Baby monitor","");
+    add("Baby","Car seat","","Install only on a forward-facing seat with a seat belt");add("Baby","Stroller or baby carrier","");add("Baby","Baby sunscreen and sun hat","");
+    add("Baby","Baby thermometer","");add("Baby","Children's fever reducer","","Ask your pediatrician for the right dose");add("Baby","Outlet covers and cabinet latches","Childproof the RV");
+    add("Baby","Extra outfits",`${cl*2} per baby`,"Spills happen")}
+  // Kids
+  if(kids){add("Kids","Booster or car seat","","Check the right seat for each child's age and size");add("Kids","Activity and coloring books","");add("Kids","Tablet and kid headphones","");
+    add("Kids","Small toys and card games","");add("Kids","Bikes or scooters + helmets","");add("Kids","Night light","");add("Kids","Kid-friendly snacks","");add("Kids","Junior Ranger booklets (free at parks)","")}
+  if(teens){add("Kids","Teen headphones and chargers","");add("Kids","Books or e-reader","")}
+  // Seniors
+  if(seniors){add("Seniors","Weekly pill organizer","");add("Seniors","Prescription refills before you leave","");add("Seniors","Reading glasses (spare pair)","");
+    add("Seniors","Medical info card and doctor contacts","");add("Seniors","Comfortable supportive shoes","");add("Seniors","Folding step stool or grab handle","For easy RV entry")}
+  // Pets
+  if(pets){add("Pets","Pet food and treats",`${days+2} days' worth`);add("Pets","Food and water bowls","");add("Pets","Leash, collar and ID tags","");add("Pets","Waste bags","");
+    add("Pets","Pet bed or crate","");add("Pets","Vaccination records","Many campgrounds ask");add("Pets","Pet medications","")}
+  // Food & drinks
+  add("Food & drinks","Drinking water",`${n*days} gallons`,"About 1 gallon per person per day");add("Food & drinks","Breakfast foods","Cereal or oats, eggs, bread, fruit");
+  add("Food & drinks","Lunch foods","Sandwich fixings, wraps, fruit, veggies");add("Food & drinks","Dinner ingredients","Plan simple one-pot or grill meals");
+  add("Food & drinks","Snacks","");add("Food & drinks","Coffee, tea and drinks","");add("Food & drinks","Spices, oil, salt and pepper","");
+  if(D.has("vegetarian"))add("Food & drinks","Vegetarian proteins","Beans, lentils, tofu, eggs, cheese","Vegetarian");
+  if(D.has("vegan"))add("Food & drinks","Vegan staples","Plant milk, tofu or tempeh, beans, nutritional yeast","Vegan");
+  if(D.has("glutenfree")){add("Food & drinks","Gluten-free bread, pasta and snacks","","Gluten-free");add("Kitchen","Separate cutting board and toaster bags","","Avoid cross-contact")}
+  if(D.has("dairyfree"))add("Food & drinks","Dairy-free milk, yogurt and snacks","","Dairy-free");
+  if(D.has("nutallergy")){add("Food & drinks","Nut-free snacks — read every label","","Nut allergy");add("Safety & first aid","Epinephrine auto-injectors (if prescribed)","Keep where everyone knows","Nut allergy")}
+  if(D.has("halal"))add("Food & drinks","Halal meats and foods","Stock up before rural areas","Halal");
+  if(D.has("kosher"))add("Food & drinks","Kosher foods and separate utensils","","Kosher");
+  if(D.has("lowsugar")){add("Food & drinks","Low-sugar snacks and drinks","","Low sugar");add("Safety & first aid","Glucose tablets and testing supplies (if used)","","Diabetic-friendly")}
+  if(babies||kids)add("Food & drinks","Extra kid snacks and juice boxes","");
+  add("Food & drinks","Cooler and ice","");
+  // Kitchen
+  ["Pots and pans","Cooking utensils and knife","Plates, bowls, cups and cutlery","Dish soap, sponge and drying towel","Paper towels","Trash bags","Aluminum foil and zip bags","Can opener and bottle opener","Coffee maker or kettle"].forEach(t=>add("Kitchen",t,""));
+  // Bedding
+  add("Bedding","Sheets for each bed","");add("Bedding","Pillows",String(n));add("Bedding",sea==="cold"?"Warm blankets or sleeping bags":"Blankets",String(n));
+  // RV essentials
+  ["Drinking-water hose","Water pressure regulator","Sewer hose kit and disposable gloves","RV toilet paper and tank treatment","Surge protector and power adapter","Leveling blocks and wheel chocks","Propane — tank full","Tool kit, duct tape and zip ties","Flashlights or headlamps + batteries"].forEach(t=>add("RV essentials",t,""));
+  // Safety
+  ["First aid kit","Fire extinguisher (check the gauge)","Test smoke, CO and propane detectors","Emergency contacts and roadside assistance number"].forEach(t=>add("Safety & first aid",t,""));
+  // Documents
+  ["Driver's licenses","RV registration and insurance","Campground confirmations","Cash and cards","National park pass (if you have one)"].forEach(t=>add("Documents & money",t,""));
+  // Electronics
+  add("Electronics","Phones and chargers",String(n));add("Electronics","Car chargers and USB cables","");add("Electronics","Power bank","");add("Electronics","Offline maps downloaded","Cell service can drop in parks");
+  // Outdoor
+  add("Outdoor & fun","Camp chairs",String(n));add("Outdoor & fun","Outdoor rug or mat","");add("Outdoor & fun","Lantern or string lights","");add("Outdoor & fun","Games, cards or a ball","");add("Outdoor & fun","Firewood — buy near the campground","Moving firewood can spread pests");
+  if(sea!=="cold")add("Outdoor & fun","Beach or pool towels","");
+  return out}
+function mergePack(oldItems,newItems){const key=x=>x.cat+"|"+x.text;const old=new Map((oldItems||[]).map(x=>[key(x),x]));const custom=(oldItems||[]).filter(x=>x.custom);
+  return newItems.map(x=>{const o=old.get(key(x));return o?{...x,id:o.id,done:o.done,note:o.note}:x}).concat(custom.filter(c=>!newItems.some(x=>key(x)===key(c))))}
+let packSaveT=null;
+function savePack(){const e=cur();if(!e)return;persist();if(me){clearTimeout(packSaveT);packSaveT=setTimeout(()=>Store.saveTrip(e).catch(()=>{}),800)}}
+function packStats(p){const items=(p&&p.items)||[];return{done:items.filter(x=>x.done).length,total:items.length}}
+
+function packSetupView(){const e=cur(),s=ui.packSetup;const n=s.step;
+  const body=n===0?`<h2>Who's traveling?</h2><p class="hint">Add everyone coming along and their age — we'll size clothes, toiletries and gear for each person.</p>
+    <div class="stack">${s.travelers.map((t,i)=>`<div class="row" style="margin:0;flex-wrap:nowrap"><input type="text" data-tname="${i}" value="${esc(t.name)}" placeholder="Name (optional)" aria-label="Name of person ${i+1}" style="flex:2"><input type="number" data-tage="${i}" value="${esc(t.age)}" min="0" max="110" inputmode="numeric" placeholder="Age" aria-label="Age of person ${i+1}" style="flex:1;max-width:96px"><button class="btn ghost sm" data-tdel="${i}" aria-label="Remove person ${i+1}"${s.travelers.length<=1?" disabled":""}>✕</button></div>`).join("")}</div>
+    <div class="row"><button class="btn ghost sm" data-tadd="1">+ Add a person</button><span class="meta">${s.travelers.length} ${s.travelers.length===1?"person":"people"}</span></div>`
+  :`<h2>Any dietary preferences?</h2><p class="hint">Pick all that apply. We'll add the right foods and safety items.</p>
+    <div class="chips">${DIETS.map(d=>`<button class="chip${s.diet.includes(d[0])||(!s.diet.length&&d[0]==="none")?" on":""}" data-diet="${d[0]}" aria-pressed="${s.diet.includes(d[0])}">${esc(d[1])}</button>`).join("")}</div>`;
+  return `<div class="road"><nav class="rd" aria-label="Packing setup">${["WHO","FOOD"].map((x,i)=>`<span class="mk${i<n?" on":i===n?" cur":""}"><small>STEP</small>${x}</span>`).join("")}</nav></div>
+  <div class="q"><div class="step">Packing list · ${esc((e.plan.to&&e.plan.to.label)||e.A.to)}</div>${body}
+  <div class="nav"><button class="btn ghost" data-packback="1">← ${n===0?"Cancel":"Back"}</button><button class="btn" data-packnext="1">${n===1?"Build my packing list":"Next →"}</button></div></div>`}
+
+function packView(){const e=cur(),p=e.pack,st=packStats(p),pct=st.total?Math.round(st.done/st.total*100):0,only=ui.packOnly;
+  const cats=PACK_CATS.concat([...new Set(p.items.map(x=>x.cat))].filter(c=>!PACK_CATS.includes(c)));
+  const people=p.travelers.map((t,i)=>(t.name||`Person ${i+1}`)+` (${t.age})`).join(", ");
+  return `<div class="sum"><div class="meta">Packing list</div><h2>${esc((e.plan.to&&e.plan.to.label)||e.A.to)}</h2>
+    <p class="meta" style="margin-top:6px">${esc(people)}${p.diet.length?` · ${esc(p.diet.map(d=>DIETS.find(x=>x[0]===d)?.[1]||d).join(", "))}`:""} · ${tripDays(e)} driving day${tripDays(e)===1?"":"s"}${season(e)!=="mixed"?` · ${season(e)} weather`:""}</p>
+    <div class="kpis"><div class="kpi"><b>${st.done}</b><span>packed</span></div><div class="kpi"><b>${st.total-st.done}</b><span>to go</span></div><div class="kpi"><b>${pct}%</b><span>ready</span></div></div>
+    <div class="meter" style="height:12px;background:var(--soft);border-radius:99px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:var(--green);border-radius:99px"></i></div>
+    <div class="chips"><button class="chip${!only?" on":""}" data-packonly="0">All items</button><button class="chip${only?" on":""}" data-packonly="1">Still to pack</button><button class="chip" data-packedit="1">Change travelers or diet</button></div></div>
+  ${cats.map(c=>{const its=p.items.filter(x=>x.cat===c&&(!only||!x.done));const all=p.items.filter(x=>x.cat===c);if(!all.length)return "";const dn=all.filter(x=>x.done).length;
+    return `<details class="day packcat" ${(ui.closed&&ui.closed[c])?"":"open"}><summary><span class="pc-h">${esc(c)}</span><span class="meta">${dn}/${all.length}</span></summary>
+    <ul class="plist">${its.map(x=>`<li class="pitem${x.done?" done":""}"><label><input type="checkbox" data-pdone="${x.id}"${x.done?" checked":""}><span><b>${esc(x.text)}</b>${x.qty?` <span class="qty">${esc(x.qty)}</span>`:""}${x.why?`<small class="meta">${esc(x.why)}</small>`:""}${x.note&&ui.noteFor!==x.id?`<small class="pnote">Note: ${esc(x.note)}</small>`:""}</span></label>
+      <span class="pacts"><button class="btn ghost sm" data-pnote="${x.id}" aria-label="Add a note to ${esc(x.text)}">${x.note?"Edit note":"Note"}</button><button class="btn ghost sm" data-pdel="${x.id}" aria-label="Remove ${esc(x.text)}">✕</button></span>
+      ${ui.noteFor===x.id?`<form class="pnoteform" data-noteform="${x.id}"><input type="text" name="note" maxlength="200" value="${esc(x.note)}" placeholder="e.g. Buy at the store, in the blue bin, size 4T"><button class="btn sm">Save</button></form>`:""}</li>`).join("")||`<li class="meta" style="padding:6px 0">All packed here.</li>`}</ul>
+    <form class="paddform" data-addform="${esc(c)}"><input type="text" name="item" maxlength="80" placeholder="Add an item to ${esc(c)}" aria-label="Add an item to ${esc(c)}"><button class="btn ghost sm">Add</button></form></details>`}).join("")}
+  <p class="meta">Tip: tap “Note” to remember sizes, where something is stored, or what to buy.</p>`}
+
 /* ===== badges ===== */
-function badges(p){const tot=p.days.reduce((a,d)=>a+d.miles,0),b=["Trailblazer"];if(tot>=1000)b.push("Long Hauler");if(p.days.length>=3)b.push("Road Warrior");
+function badges(p){const tot=p.days.reduce((a,d)=>a+d.miles,0),b=["Trailblazer"];{const e=cur(),st=e&&e.pack?packStats(e.pack):null;if(st&&st.total&&st.done===st.total)b.push("Packed & Ready")}if(tot>=1000)b.push("Long Hauler");if(p.days.length>=3)b.push("Road Warrior");
   b.push({family:"Family Captain",friends:"Road Crew",seniors:"Easy Rider",couple:"Road Sweethearts",solo:"Lone Ranger"}[A.who||"couple"]);if(A.pets)b.push("Pack Leader");return b}
 
 /* ===== pictures ===== */
@@ -312,7 +438,9 @@ function duskHour(dateStr,lat){if(!dateStr||lat==null)return 18.5;const d=parse(
 function home(){const pf=me&&prefs&&prefs.from&&prefs.who;return `
   ${me?`<div class="q" style="margin-bottom:16px;max-width:none"><div class="step">Welcome back${me.name?", "+esc(me.name.split(" ")[0]):""}</div>${pf?`<h2 style="font-size:26px">Plan with your usual settings</h2><p class="hint">From ${esc(prefs.from)} · ${esc(WHO.find(w=>w[0]===prefs.who)?.[1]||"")}${prefs.pets?" + pets":""} · ${prefs.driveCustom||prefs.drive} mi a day · break every ${prefs.breaks} h</p><div class="nav" style="margin-top:6px"><span class="meta">Just tell us where and when.</span><button class="btn y" data-quick="1">Quick plan →</button></div>`:`<p class="hint" style="margin:0">Plan a trip and we'll remember your settings for next time.</p>`}</div>`:""}
   <div class="q hero"><img alt="MileMarker logo" src="${LOGO}"><div><h2 style="font-size:clamp(1.9rem,6vw,3rem)">Plan your RV trip</h2><p class="hint">Answer a few quick questions. We'll plan each driving day, your breaks and places to stay — matched to who's coming along.</p><button class="btn" data-go="0">Plan a trip</button></div></div>
-  ${saved.length?`<h3 class="sec" style="max-width:640px;margin-left:auto;margin-right:auto">Your trips</h3>${saved.map((t,i)=>`<button class="saved" data-open="${i}"><b>${esc(t.A.from.split(",")[0])} → ${esc(t.A.to.split(",")[0])}</b><div class="meta">${t.plan.days.length} day${t.plan.days.length===1?"":"s"} · ${t.plan.days.reduce((a,d)=>a+d.miles,0).toLocaleString()} miles${t.A.when?" · leaves "+fmtD(t.A.when):""}</div></button>`).join("")}`:""}`}
+  ${saved.length?`<h3 class="sec">Your trips</h3>${saved.map((t,i)=>{const ps=t.pack?packStats(t.pack):null,tot=t.plan.days.reduce((a,d)=>a+d.miles,0);return `<details class="saved"${i===0?" open":""}><summary><b>${esc(String(t.A.from).split(",")[0])} → ${esc(String(t.A.to).split(",")[0])}</b><div class="meta">${t.plan.days.length} day${t.plan.days.length===1?"":"s"} · ${tot.toLocaleString()} miles${t.A.when?" · leaves "+fmtD(t.A.when):""}${ps?` · packed ${ps.done}/${ps.total}`:""}</div></summary>
+    <ol class="tl">${t.plan.days.map((d,k)=>`<li><time>Day ${k+1}</time><span>${t.A.when?esc(fmtD(addDays(t.A.when,k)))+" · ":""}${esc(d.from)} → ${esc(d.to)} · ${d.miles} mi${d.stays&&d.stays[0]?` · stay: ${esc(d.stays[0].name)}`:""}</span></li>`).join("")}</ol>
+    <div class="row"><button class="btn sm" data-open="${i}">Open itinerary</button><button class="btn ghost sm" data-openpack="${i}">${t.pack?"Packing list":"Build packing list"}</button></div></details>`}).join("")}`:""}`}
 function question(){const k=flow[step],n=step+1,last=step===flow.length-1;let body="",ok=true;
   if(k==="to"){body=`<h2>Where do you want to go?</h2><p class="hint">Type a full address, a city, or a park.</p><input type="text" id="inp" list="pl" autocomplete="off" value="${esc(A.to)}" placeholder="e.g. Great Smoky Mountains NP, TN"><datalist id="pl">${PLACES.map(p=>`<option value="${esc(p[0])}">`).join("")}</datalist><div class="chips">${POPULAR.map(p=>`<button class="chip" data-fill="${esc(p)}">${esc(p.replace(" NP"," National Park").split(",")[0])}</button>`).join("")}</div>`;ok=!!A.to.trim()}
   if(k==="from"){body=`<h2>Where are you starting from?</h2><p class="hint">Your home address, campground or city.</p><input type="text" id="inp" list="pl" autocomplete="off" value="${esc(A.from)}" placeholder="e.g. 123 Main St, Tampa, FL"><datalist id="pl">${PLACES.map(p=>`<option value="${esc(p[0])}">`).join("")}</datalist>`;ok=!!A.from.trim()}
@@ -331,6 +459,7 @@ function result(){const p=plan,st=style(),tot=p.days.reduce((a,d)=>a+d.miles,0),
   return `<div class="sum"><div class="meta" style="color:#d9eee1">Your MileMarker plan</div><h2>${esc((p.from&&p.from.label)||A.from)} → ${esc((p.to&&p.to.label)||A.to)}</h2>
   <div class="kpis"><div class="kpi"><b>${tot.toLocaleString()}</b><span>miles</span></div><div class="kpi"><b>${p.days.length}</b><span>driving day${p.days.length===1?"":"s"}</span></div><div class="kpi"><b>${Math.round(hrs)}</b><span>hours on the road</span></div></div>
   <div class="badges">${bs.map(b=>`<span class="badge">${esc(b)}</span>`).join("")}</div></div>
+  ${ui.askPack&&cur()?`<div class="ask"><b style="font-size:1.1rem">Trip saved! Want help with your packing list?</b><p class="meta" style="margin:4px 0 0">Answer two quick questions and we'll build a checklist for everyone coming — clothes, toiletries, food and RV gear.</p><div class="row"><button class="btn" data-packyes="1">Yes, build my list</button><button class="btn ghost" data-packno="1">Not now</button></div></div>`:""}
   ${st.notes.length?`<div class="note"><b>Adjusted for you:</b> ${st.notes.map(esc).join(" ")}</div>`:""}
   <h3 class="sec">Choose your route</h3><div class="routes">${p.routes.map((r,i)=>`<button class="route${i===routeIx?" on":""}" data-route="${i}"><b>${esc(r.name)}</b> <span class="meta">· ${r.miles?r.miles.toLocaleString()+" mi":""}${r.hours?` · ${r.hours} hrs`:""}</span><div class="meta">${esc(r.via)}${r.why?` — ${esc(r.why)}`:""}</div></button>`).join("")}</div>
   ${!p.ai?`<p class="meta">Plan made from the map. For exact roads that fit your RV, use an RV route planner.</p>`:""}
@@ -453,7 +582,9 @@ function applyAction(a){if(!a||typeof a!=="object")return "";const day=n=>{const
     case "merge":{const i=day(a.day);if(i==null||i>=plan.days.length-1)return "";mergeDay(i);return `Days ${i+1} and ${i+2} merged.`}
     case "route":{const k=Math.round(+a.index);if(!plan||!plan.routes[k]||k===routeIx)return "";routeIx=k;const r=plan.routes[k];if(plan.ai&&hasAI())build(`${r.name} via ${r.via}`);else render();return `Switched to the ${r.name} route.`}}}catch(e){}
   return ""}
-function render(){$("#app").innerHTML=busy?loading():plan?result():step<0?home():question();const i=$("#inp");if(i&&!("ontouchstart" in window))i.focus()}
+function startPackSetup(){const e=cur();ui.packSetup={step:0,travelers:e.pack?e.pack.travelers.map(t=>({...t})):defaultTravelers(e),diet:e.pack?[...e.pack.diet]:[]}}
+function tabsHTML(){const e=cur();if(!e)return "";const st=e.pack?packStats(e.pack):null;return `<div class="tabs" role="tablist"><button role="tab" aria-selected="${ui.tab!=="pack"}" class="${ui.tab!=="pack"?"on":""}" data-tab="plan">Itinerary</button><button role="tab" aria-selected="${ui.tab==="pack"}" class="${ui.tab==="pack"?"on":""}" data-tab="pack">Packing list${st?` · ${st.total?Math.round(st.done/st.total*100):0}%`:""}</button></div>`}
+function render(){$("#app").innerHTML=busy?loading():plan?(cur()&&ui.tab==="pack"?tabsHTML()+(ui.packSetup?packSetupView():cur().pack?packView():packSetupView()):tabsHTML()+result()):step<0?home():question();const i=$("#inp");if(i&&!("ontouchstart" in window))i.focus()}
 
 /* ===== events ===== */
 function earn(k){if(!answered[k]){answered[k]=1;xp+=10;persist();toast("+10 · Mile marker "+(flow.indexOf(k)+1))}}
@@ -463,15 +594,29 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
   else if(d.signin){openAuth(false)}
   else if(d.back){step--;errMsg="";render()}
   else if(d.next){const k=flow[step];if(k==="to"||k==="from"){const v=$("#inp").value.trim();if(!v)return;A[k]=v}if(k==="drive"){const c=$("#custom").value;A.driveCustom=c&&+c>=50?c:""}if(k==="when"){A.when=$("#when").value||""}
-    earn(k);if(step<flow.length-1){step++;render()}else{plan=null;routeIx=0;ui.savedIx=null;ui.edit=null;ui.nDays=null;build()}}
+    earn(k);if(step<flow.length-1){step++;render()}else{plan=null;routeIx=0;ui.savedIx=null;ui.edit=null;ui.nDays=null;ui.tab="plan";ui.askPack=false;ui.packSetup=null;build()}}
   else if(d.fill){$("#inp").value=d.fill;A.to=d.fill;render()}
   else if(d.drive){A.drive=+d.drive;A.driveCustom="";render()}
   else if(d.breaks){A.breaks=+d.breaks;render()}
   else if(d.who){A.who=d.who;render()}
   else if(d.nodate){A.when="";render()}
   else if(d.route!==undefined){const i=+d.route;if(i===routeIx)return;routeIx=i;const r=plan.routes[i];if(plan.ai&&(sampleFn||AI_ENDPOINT))build(`${r.name} via ${r.via}`);else if(!plan.ai){const keep=plan.routes;const np=offlinePlan(r.viaLabel||null);if(np&&!np.error){np.routes=keep;plan=np}render()}else render()}
-  else if(d.save){const entry={id:(ui.savedIx!=null&&saved[ui.savedIx]&&saved[ui.savedIx].id)||uid(),A:{...A},plan,at:Date.now()};if(me)Store.saveTrip(entry).catch(()=>toast("Saved on this device only"));if(ui.savedIx!=null)saved[ui.savedIx]=entry;else{saved.unshift(entry);ui.savedIx=0;xp+=20;toast("+20 · Trip saved")}persist();render()}
-  else if(d.open){const t=saved[+d.open];A={...t.A};plan=t.plan;routeIx=0;ui.savedIx=+d.open;render();scrollTo(0,0)}
+  else if(d.save){const prev=ui.savedIx!=null?saved[ui.savedIx]:null;const entry={id:(prev&&prev.id)||uid(),A:{...A},plan,at:Date.now(),pack:prev&&prev.pack};if(!prev)ui.askPack=true;if(me)Store.saveTrip(entry).catch(()=>toast("Saved on this device only"));if(ui.savedIx!=null)saved[ui.savedIx]=entry;else{saved.unshift(entry);ui.savedIx=0;xp+=20;toast("+20 · Trip saved")}persist();render()}
+  else if(d.open!==undefined||d.openpack!==undefined){const ix=+(d.open??d.openpack),t=saved[ix];A={...t.A};plan=t.plan;routeIx=0;ui.savedIx=ix;ui.askPack=false;ui.tab=d.openpack!==undefined?"pack":"plan";if(ui.tab==="pack"&&!t.pack)startPackSetup();render();scrollTo(0,0)}
+  else if(d.tab){ui.tab=d.tab;if(d.tab==="pack"&&!cur().pack)startPackSetup();render();scrollTo(0,0)}
+  else if(d.packyes){ui.askPack=false;startPackSetup();ui.tab="pack";render();scrollTo(0,0)}
+  else if(d.packno){ui.askPack=false;render()}
+  else if(d.tadd){ui.packSetup.travelers.push({name:"",age:""});render()}
+  else if(d.tdel!==undefined){ui.packSetup.travelers.splice(+d.tdel,1);render()}
+  else if(d.diet){const s2=ui.packSetup;if(d.diet==="none")s2.diet=[];else{const k=s2.diet.indexOf(d.diet);if(k>=0)s2.diet.splice(k,1);else s2.diet.push(d.diet)}render()}
+  else if(d.packback){if(ui.packSetup.step>0){ui.packSetup.step--}else{ui.packSetup=null;if(!cur().pack)ui.tab="plan"}render();scrollTo(0,0)}
+  else if(d.packnext){const s2=ui.packSetup;if(s2.step===0){const bad=s2.travelers.some(t=>t.age===""||!(+t.age>=0&&+t.age<=110));if(bad){toast("Add an age for each person");return}s2.step=1;render();scrollTo(0,0)}
+    else{const e=cur(),tr=s2.travelers.map(t=>({name:String(t.name||"").trim().slice(0,30),age:Math.round(+t.age)})),items=buildPack(e,tr,s2.diet),first=!e.pack;
+      e.pack={travelers:tr,diet:[...s2.diet],items:e.pack?mergePack(e.pack.items,items):items,awarded:e.pack&&e.pack.awarded};ui.packSetup=null;ui.tab="pack";if(first){xp+=10;toast("+10 · Packing list ready")}savePack();render();scrollTo(0,0)}}
+  else if(d.packonly!==undefined){ui.packOnly=d.packonly==="1";render()}
+  else if(d.packedit){const e=cur();ui.packSetup={step:0,travelers:e.pack.travelers.map(t=>({...t})),diet:[...e.pack.diet]};render();scrollTo(0,0)}
+  else if(d.pnote){ui.noteFor=ui.noteFor===d.pnote?null:d.pnote;render();const f=document.querySelector(`[data-noteform="${d.pnote}"] input`);if(f)f.focus()}
+  else if(d.pdel){const e=cur();e.pack.items=e.pack.items.filter(x=>x.id!==d.pdel);savePack();render()}
   else if(d.restart){plan=null;step=-1;ui.savedIx=null;A={to:"",from:A.from,drive:A.drive,driveCustom:A.driveCustom,breaks:A.breaks,who:A.who,pets:A.pets,when:""};render();scrollTo(0,0)}
   else if(d.edit!==undefined){ui.edit=+d.edit;render();document.querySelector(`[data-dayform="${d.edit}"]`)?.scrollIntoView({block:"center"})}
   else if(d.canceledit){ui.edit=null;render()}
@@ -485,6 +630,11 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
 });
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="inp"){A[flow[step]]=t.value;const n=$("[data-next]");if(n)n.disabled=!t.value.trim()}if(t.id==="custom"&&t.value){document.querySelectorAll("[data-drive]").forEach(x=>x.classList.remove("on"))}});
 document.addEventListener("change",e=>{if(e.target.id==="pets")A.pets=e.target.checked;if(e.target.id==="when"){A.when=e.target.value;document.querySelector("[data-nodate]")?.classList.toggle("on",!A.when)}});
+document.addEventListener("change",e=>{const el=e.target;if(el.dataset&&el.dataset.pdone){const p=cur().pack,x=p.items.find(y=>y.id===el.dataset.pdone);if(!x)return;x.done=el.checked;const st=packStats(p);if(st.total&&st.done===st.total&&!p.awarded){p.awarded=true;xp+=30;setTimeout(()=>toast("+30 · Packed and ready!"),50)}savePack();const y=scrollY;render();scrollTo(0,y)}});
+document.addEventListener("input",e=>{const el=e.target;if(!ui.packSetup)return;if(el.dataset.tname!==undefined)ui.packSetup.travelers[+el.dataset.tname].name=el.value;if(el.dataset.tage!==undefined)ui.packSetup.travelers[+el.dataset.tage].age=el.value});
+document.addEventListener("submit",e=>{const f=e.target;if(f.dataset.noteform!==undefined){e.preventDefault();const x=cur().pack.items.find(y=>y.id===f.dataset.noteform);if(x)x.note=String(new FormData(f).get("note")||"").trim().slice(0,200);ui.noteFor=null;savePack();const y=scrollY;render();scrollTo(0,y);return}
+  if(f.dataset.addform!==undefined){e.preventDefault();const t=String(new FormData(f).get("item")||"").trim().slice(0,80);if(!t)return;cur().pack.items.push({id:uid(),cat:f.dataset.addform,text:t,qty:"",note:"",done:false,why:"",custom:true});cur().pack.awarded=cur().pack.awarded;savePack();const y=scrollY;render();scrollTo(0,y);const nf=document.querySelector(`[data-addform="${f.dataset.addform}"] input`);if(nf)nf.focus();return}});
+document.addEventListener("toggle",e=>{const d=e.target;if(d.classList&&d.classList.contains("packcat")){const c=d.querySelector(".pc-h").textContent;ui.closed=ui.closed||{};ui.closed[c]=!d.open}},true);
 document.addEventListener("submit",e=>{const f=e.target;if(f.dataset.dayform===undefined)return;e.preventDefault();const i=+f.dataset.dayform,fd=new FormData(f),m=Math.round(+fd.get("miles"));if(!(m>0))return;const to=String(fd.get("to")||"").trim(),c=ui.calc;saveDay(i,to,m,c&&c.i===i&&norm(c.to)===norm(to)&&c.m2?c.m2:undefined);ui.calc=null});
 document.addEventListener("input",e=>{const f=e.target.closest&&e.target.closest("[data-dayform]");if(!f||e.target.name!=="to")return;clearTimeout(calcT);const i=+f.dataset.dayform;calcT=setTimeout(()=>calcEdit(i),450)});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="inp"){e.preventDefault();$("[data-next]")?.click()}});
@@ -493,7 +643,7 @@ $("#chatbtn").hidden=!hasAI();renderAcct();initAccount();
 $("#points").textContent=xp.toLocaleString()+" pts";
 try{const th=localStorage.getItem("mm-theme");if(th==="light"||th==="dark")document.documentElement.dataset.theme=th}catch(e){}
 $("#theme").addEventListener("click",()=>{const cur=document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"),nx=cur==="dark"?"light":"dark";document.documentElement.dataset.theme=nx;try{localStorage.setItem("mm-theme",nx)}catch(e){}});
-$("#home").addEventListener("click",()=>{if(busy)return;plan=null;step=-1;ui.savedIx=null;ui.edit=null;render();scrollTo(0,0)});
+$("#home").addEventListener("click",()=>{if(busy)return;plan=null;step=-1;ui.savedIx=null;ui.edit=null;ui.tab="plan";ui.packSetup=null;ui.askPack=false;render();scrollTo(0,0)});
 $("#chatbtn").addEventListener("click",openChat);$("#chatclose").addEventListener("click",closeChat);
 $("#chatform").addEventListener("submit",e=>{e.preventDefault();const v=$("#chatin").value;$("#chatin").value="";send(v)});
 $("#sugg").addEventListener("click",e=>{const b=e.target.closest("[data-say]");if(b)send(b.dataset.say)});
