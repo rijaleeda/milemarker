@@ -147,7 +147,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,s
 {
 /* ===== Settings for your own website =====
    AI_ENDPOINT: URL of your Cloudflare Worker (see worker.js). Leave "" to plan without AI. */
-const AI_ENDPOINT="https://cold-unit-215a.erbinayakpoudel.workers.dev";
+const AI_ENDPOINT=/github\.io$/.test(location.hostname)?"":"/api";
+/* On Vercel, set AI_ENDPOINT to "/api" (the app's own back end). */
 /* GOOGLE_CLIENT_ID: your Google OAuth web client ID, for "Continue with Google" sign-in (see SETUP.md). */
 const GOOGLE_CLIENT_ID="";
 
@@ -361,7 +362,8 @@ let ui={savedIx:null,edit:null,nDays:null,stayBusy:null};
 let me=null,prefs=null,cdb=null,authErr="",authBusy=false,pendingChat=false,delAsk=false;
 let TOKEN="";try{TOKEN=localStorage.getItem("mm-token")||""}catch(e){}
 const canGoogle=()=>!!(AI_ENDPOINT&&GOOGLE_CLIENT_ID);
-async function api(path,opt={}){const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+path,{...opt,headers:{"content-type":"application/json",...(TOKEN?{authorization:"Bearer "+TOKEN}:{})}});if(r.status===401){signOutLocal();throw{code:"auth"}}if(!r.ok)throw{code:"http_"+r.status};return r.status===204?null:r.json()}
+const apiPath=p=>p.replace(/^\/trips\/([a-z0-9]+)$/,"/trips?id=$1");
+async function api(path,opt={}){const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+apiPath(path),{...opt,headers:{"content-type":"application/json",...(TOKEN?{authorization:"Bearer "+TOKEN}:{})}});if(r.status===401){signOutLocal();throw{code:"auth"}}if(!r.ok)throw{code:"http_"+r.status};return r.status===204?null:r.json()}
 const ucol=()=>cdb.collection("data/users/"+me.id);
 let wq=Promise.resolve();const queue=f=>(wq=wq.then(f,f));
 const plain=o=>JSON.parse(JSON.stringify(o));
@@ -397,7 +399,7 @@ function loadGIS(){return new Promise((res,rej)=>{if(window.google&&google.accou
 let gisReady=false;
 async function showGoogle(){try{await loadGIS();if(!gisReady){google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogle});gisReady=true}const box=$("#gbtn");if(box)google.accounts.id.renderButton(box,{theme:"outline",size:"large",text:"continue_with",shape:"pill",width:280})}catch(e){authErr="Couldn't load Google sign-in. Check your connection.";const box=$("#gbtn");if(box)box.innerHTML=`<p class="err">${esc(authErr)}</p>`}}
 async function onGoogle(resp){authBusy=true;authErr="";renderAuth();
-  try{const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+"/auth/google",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({credential:resp.credential})});if(!r.ok)throw 0;const d=await r.json();TOKEN=d.token;try{localStorage.setItem("mm-token",TOKEN)}catch(e){}
+  try{const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+"/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({credential:resp.credential})});if(!r.ok)throw 0;const d=await r.json();TOKEN=d.token;try{localStorage.setItem("mm-token",TOKEN)}catch(e){}
     me={...d.user,via:"google"};await afterLogin();authBusy=false;const goChat=pendingChat;closeAuth();toast("Signed in");if(goChat)openChat();return}catch(e){authErr="Sign-in didn't work. Please try again."}
   authBusy=false;renderAuth()}
 async function initAccount(){
