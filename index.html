@@ -133,6 +133,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,s
 .packcat summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;min-height:44px;list-style:none}
 .packcat summary::-webkit-details-marker{display:none}.pc-h{font-size:1.15rem;font-weight:800}
 .plist{list-style:none;margin:6px 0 0;padding:0}
+.ms{margin-top:12px}.ms-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.ms-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.mst{display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:.88rem;min-width:0}
+.mst b{display:block;font-weight:600;overflow-wrap:anywhere}.mst small{display:block}.msi{font-size:1.15rem;width:24px;text-align:center;flex:none}
+.mst.ok{border-style:solid;border-color:var(--green);background:var(--soft);color:var(--ink)}.mst.ok b{font-weight:700}.mst.ok small{color:var(--green);font-weight:700}
+.who{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;padding-left:34px}
+.wchip{font:inherit;font-size:.82rem;min-height:32px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.wchip.on{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
 .pitem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
 .pitem label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;min-height:44px}
 .pitem input[type=checkbox]{width:24px;height:24px;flex:none;margin-top:1px;accent-color:var(--green)}
@@ -141,6 +149,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,s
 .pacts{display:flex;gap:4px}.pacts .btn{min-height:38px;padding:5px 10px}
 .pnoteform,.paddform{display:flex;gap:6px;grid-column:1/-1;margin-top:6px}.paddform{margin-top:10px}
 .pnoteform input,.paddform input{flex:1;min-height:44px}
+.savedc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.savedc details.saved{border:0;padding:0;margin:0;background:none}.peek{display:inline-block;margin-top:4px;font-size:.85rem;color:var(--green);font-weight:600}
+details.saved[open] .peek{display:none}.tripbtns{margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.tripbtns .btn{padding-left:6px;padding-right:6px;justify-content:center}
 details.saved summary{list-style:none;cursor:pointer}details.saved summary::-webkit-details-marker{display:none}
 details.saved .tl{margin:10px 0 4px}
 @media(max-width:420px){.pitem{grid-template-columns:minmax(0,1fr)}.pacts{justify-content:flex-end}}
@@ -330,7 +341,7 @@ function defaultTravelers(e){const w=e.A.who||"couple";if(w==="solo")return[{nam
 function buildPack(e,travelers,diet){
   const n=travelers.length,ages=travelers.map(t=>+t.age||0),babies=ages.filter(a=>a<3).length,kids=ages.filter(a=>a>=3&&a<=12).length,teens=ages.filter(a=>a>=13&&a<=17).length,seniors=ages.filter(a=>a>=65).length;
   const days=tripDays(e),cl=Math.min(days+1,7),sea=season(e),pets=!!e.A.pets,D=new Set(diet),out=[];
-  const add=(cat,text,qty,why)=>out.push({id:uid(),cat,text,qty:qty||"",note:"",done:false,why:why||""});
+  const add=(cat,text,qty,why,per)=>out.push({id:uid(),cat,text,qty:qty||"",note:"",done:false,why:why||"",...(per||(qty&&/ each · /.test(qty))?{who:Array(n).fill(false)}:{})});
   const each=k=>n>1?`${k} each · ${n} people`:`${k}`;
   // Clothes
   add("Clothes","Shirts / tops",each(cl));add("Clothes","Underwear",each(cl+1));add("Clothes","Socks",each(cl+1));
@@ -342,8 +353,8 @@ function buildPack(e,travelers,diet){
   if(sea==="mixed")add("Clothes","Layers for warm and cool days","","Dates not set — pack layers");
   if(days+1>7)add("Clothes","Laundry bag and detergent pods","","Longer than a week — plan a laundry stop");else add("Clothes","Laundry bag","");
   // Toiletries
-  add("Toiletries","Toothbrushes",String(n));add("Toiletries","Toothpaste and floss","");add("Toiletries","Shampoo, conditioner and body wash","");
-  add("Toiletries","Deodorant","");add("Toiletries","Hairbrush and hair ties","");add("Toiletries","Bath towels",String(n));add("Toiletries","Washcloths and hand towels","");
+  add("Toiletries","Toothbrushes",String(n),"",1);add("Toiletries","Toothpaste and floss","");add("Toiletries","Shampoo, conditioner and body wash","");
+  add("Toiletries","Deodorant","");add("Toiletries","Hairbrush and hair ties","");add("Toiletries","Bath towels",String(n),"",1);add("Toiletries","Washcloths and hand towels","");
   add("Toiletries","Sunscreen","");add("Toiletries","Insect repellent","");add("Toiletries","Lip balm","");add("Toiletries","Razor and shaving supplies","");
   add("Toiletries","Personal medications","","Bring enough for the whole trip plus a few extra days");add("Toiletries","Glasses, contacts and solution","");add("Toiletries","Feminine products","");
   add("Toiletries","Hand sanitizer and wipes","");
@@ -381,7 +392,7 @@ function buildPack(e,travelers,diet){
   // Kitchen
   ["Pots and pans","Cooking utensils and knife","Plates, bowls, cups and cutlery","Dish soap, sponge and drying towel","Paper towels","Trash bags","Aluminum foil and zip bags","Can opener and bottle opener","Coffee maker or kettle"].forEach(t=>add("Kitchen",t,""));
   // Bedding
-  add("Bedding","Sheets for each bed","");add("Bedding","Pillows",String(n));add("Bedding",sea==="cold"?"Warm blankets or sleeping bags":"Blankets",String(n));
+  add("Bedding","Sheets for each bed","");add("Bedding","Pillows",String(n),"",1);add("Bedding",sea==="cold"?"Warm blankets or sleeping bags":"Blankets",String(n),"",1);
   // RV essentials
   ["Drinking-water hose","Water pressure regulator","Sewer hose kit and disposable gloves","RV toilet paper and tank treatment","Surge protector and power adapter","Leveling blocks and wheel chocks","Propane — tank full","Tool kit, duct tape and zip ties","Flashlights or headlamps + batteries"].forEach(t=>add("RV essentials",t,""));
   // Safety
@@ -389,15 +400,24 @@ function buildPack(e,travelers,diet){
   // Documents
   ["Driver's licenses","RV registration and insurance","Campground confirmations","Cash and cards","National park pass (if you have one)"].forEach(t=>add("Documents & money",t,""));
   // Electronics
-  add("Electronics","Phones and chargers",String(n));add("Electronics","Car chargers and USB cables","");add("Electronics","Power bank","");add("Electronics","Offline maps downloaded","Cell service can drop in parks");
+  add("Electronics","Phones and chargers",String(n),"",1);add("Electronics","Car chargers and USB cables","");add("Electronics","Power bank","");add("Electronics","Offline maps downloaded","Cell service can drop in parks");
   // Outdoor
-  add("Outdoor & fun","Camp chairs",String(n));add("Outdoor & fun","Outdoor rug or mat","");add("Outdoor & fun","Lantern or string lights","");add("Outdoor & fun","Games, cards or a ball","");add("Outdoor & fun","Firewood — buy near the campground","Moving firewood can spread pests");
+  add("Outdoor & fun","Camp chairs",String(n),"",1);add("Outdoor & fun","Outdoor rug or mat","");add("Outdoor & fun","Lantern or string lights","");add("Outdoor & fun","Games, cards or a ball","");add("Outdoor & fun","Firewood — buy near the campground","Moving firewood can spread pests");
   if(sea!=="cold")add("Outdoor & fun","Beach or pool towels","");
   return out}
 function mergePack(oldItems,newItems){const key=x=>x.cat+"|"+x.text;const old=new Map((oldItems||[]).map(x=>[key(x),x]));const custom=(oldItems||[]).filter(x=>x.custom);
-  return newItems.map(x=>{const o=old.get(key(x));return o?{...x,id:o.id,done:o.done,note:o.note}:x}).concat(custom.filter(c=>!newItems.some(x=>key(x)===key(c))))}
+  return newItems.map(x=>{const o=old.get(key(x));if(!o)return x;const m={...x,id:o.id,done:o.done,note:o.note};if(x.who)m.who=o.who&&o.who.length===x.who.length?o.who:x.who.map(()=>o.done);return m}).concat(custom.filter(c=>!newItems.some(x=>key(x)===key(c))))}
 let packSaveT=null;
 function savePack(){const e=cur();if(!e)return;persist();if(me){clearTimeout(packSaveT);packSaveT=setTimeout(()=>Store.saveTrip(e).catch(()=>{}),800)}}
+const MS_CAT={"Clothes":["👕","Clothes are packed"],"Toiletries":["🪥","Toiletries are set"],"Baby":["🍼","Baby is ready"],"Kids":["🧸","Kids are ready"],"Seniors":["💊","Seniors are set"],"Pets":["🐾","Pets are ready"],"Food & drinks":["🥫","Pantry is stocked"],"Kitchen":["🍳","Kitchen is set"],"Bedding":["🛏️","Beds are ready"],"RV essentials":["🚐","RV is ready"],"Safety & first aid":["🩹","Safety check done"],"Documents & money":["📄","Papers in order"],"Electronics":["🔌","Gadgets are charged"],"Outdoor & fun":["🏕️","Campsite gear set"]};
+function tName(p,i){const t=p.travelers[i]||{};return t.name||(+t.age<3?"Baby":`Traveler ${i+1}`)}
+function milestones(p){const out=[],items=p.items||[];
+  p.travelers.forEach((t,i)=>{const mine=items.filter(x=>x.who&&x.who.length===p.travelers.length);if(!mine.length)return;const d=mine.filter(x=>x.who[i]).length;
+    out.push({key:"t"+i,icon:+t.age<3?"👶":+t.age<13?"🧒":+t.age>=65?"🧓":"🧑",label:`${tName(p,i)} is ready`,done:d,total:mine.length})});
+  const cats=[...new Set(items.map(x=>x.cat))];cats.forEach(c=>{const all=items.filter(x=>x.cat===c),m=MS_CAT[c]||["✅",c+" is set"];out.push({key:"c:"+c,icon:m[0],label:m[1],done:all.filter(x=>x.done).length,total:all.length})});
+  return out}
+function checkMilestones(p){p.ms=p.ms||{};const hit=milestones(p).filter(m=>m.total&&m.done===m.total&&!p.ms[m.key]);hit.forEach(m=>{p.ms[m.key]=1;xp+=5});
+  if(hit.length)setTimeout(()=>toast(hit.length===1?`${hit[0].icon} ${hit[0].label}! +5`:`${hit.map(m=>m.icon).join(" ")} ${hit.length} milestones! +${hit.length*5}`),60);return hit.length}
 function packStats(p){const items=(p&&p.items)||[];return{done:items.filter(x=>x.done).length,total:items.length}}
 
 function packSetupView(){const e=cur(),s=ui.packSetup;const n=s.step;
@@ -417,10 +437,12 @@ function packView(){const e=cur(),p=e.pack,st=packStats(p),pct=st.total?Math.rou
     <p class="meta" style="margin-top:6px">${esc(people)}${p.diet.length?` · ${esc(p.diet.map(d=>DIETS.find(x=>x[0]===d)?.[1]||d).join(", "))}`:""} · ${tripDays(e)} driving day${tripDays(e)===1?"":"s"}${season(e)!=="mixed"?` · ${season(e)} weather`:""}</p>
     <div class="kpis"><div class="kpi"><b>${st.done}</b><span>packed</span></div><div class="kpi"><b>${st.total-st.done}</b><span>to go</span></div><div class="kpi"><b>${pct}%</b><span>ready</span></div></div>
     <div class="meter" style="height:12px;background:var(--soft);border-radius:99px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:var(--green);border-radius:99px"></i></div>
+    ${(()=>{const ms=milestones(p);return `<div class="ms"><div class="ms-h"><b>Milestones</b><span class="meta">${ms.filter(m=>m.total&&m.done===m.total).length}/${ms.length} reached</span></div><ul class="ms-list">${ms.map(m=>{const ok=m.total&&m.done===m.total;return `<li class="mst${ok?" ok":""}" title="${esc(m.label)}"><span class="msi" aria-hidden="true">${ok?m.icon:"○"}</span><span><b>${esc(m.label)}</b><small>${ok?"Done!":`${m.done}/${m.total}`}</small></span></li>`}).join("")}</ul></div>`})()}
     <div class="chips"><button class="chip${!only?" on":""}" data-packonly="0">All items</button><button class="chip${only?" on":""}" data-packonly="1">Still to pack</button><button class="chip" data-packedit="1">Change travelers or diet</button></div></div>
   ${cats.map(c=>{const its=p.items.filter(x=>x.cat===c&&(!only||!x.done));const all=p.items.filter(x=>x.cat===c);if(!all.length)return "";const dn=all.filter(x=>x.done).length;
     return `<details class="day packcat" ${(ui.closed&&ui.closed[c])?"":"open"}><summary><span class="pc-h">${esc(c)}</span><span class="meta">${dn}/${all.length}</span></summary>
     <ul class="plist">${its.map(x=>`<li class="pitem${x.done?" done":""}"><label><input type="checkbox" data-pdone="${x.id}"${x.done?" checked":""}><span><b>${esc(x.text)}</b>${x.qty?` <span class="qty">${esc(x.qty)}</span>`:""}${x.why?`<small class="meta">${esc(x.why)}</small>`:""}${x.note&&ui.noteFor!==x.id?`<small class="pnote">Note: ${esc(x.note)}</small>`:""}</span></label>
+      ${x.who&&x.who.length===p.travelers.length&&p.travelers.length>1?`<span class="who">${x.who.map((w,i)=>`<button class="wchip${w?" on":""}" data-pwho="${x.id}:${i}" aria-pressed="${!!w}">${w?"✓ ":""}${esc(tName(p,i))}</button>`).join("")}</span>`:""}
       <span class="pacts"><button class="btn ghost sm" data-pnote="${x.id}" aria-label="Add a note to ${esc(x.text)}">${x.note?"Edit note":"Note"}</button><button class="btn ghost sm" data-pdel="${x.id}" aria-label="Remove ${esc(x.text)}">✕</button></span>
       ${ui.noteFor===x.id?`<form class="pnoteform" data-noteform="${x.id}"><input type="text" name="note" maxlength="200" value="${esc(x.note)}" placeholder="e.g. Buy at the store, in the blue bin, size 4T"><button class="btn sm">Save</button></form>`:""}</li>`).join("")||`<li class="meta" style="padding:6px 0">All packed here.</li>`}</ul>
     <form class="paddform" data-addform="${esc(c)}"><input type="text" name="item" maxlength="80" placeholder="Add an item to ${esc(c)}" aria-label="Add an item to ${esc(c)}"><button class="btn ghost sm">Add</button></form></details>`}).join("")}
@@ -438,9 +460,9 @@ function duskHour(dateStr,lat){if(!dateStr||lat==null)return 18.5;const d=parse(
 function home(){const pf=me&&prefs&&prefs.from&&prefs.who;return `
   ${me?`<div class="q" style="margin-bottom:16px;max-width:none"><div class="step">Welcome back${me.name?", "+esc(me.name.split(" ")[0]):""}</div>${pf?`<h2 style="font-size:26px">Plan with your usual settings</h2><p class="hint">From ${esc(prefs.from)} · ${esc(WHO.find(w=>w[0]===prefs.who)?.[1]||"")}${prefs.pets?" + pets":""} · ${prefs.driveCustom||prefs.drive} mi a day · break every ${prefs.breaks} h</p><div class="nav" style="margin-top:6px"><span class="meta">Just tell us where and when.</span><button class="btn y" data-quick="1">Quick plan →</button></div>`:`<p class="hint" style="margin:0">Plan a trip and we'll remember your settings for next time.</p>`}</div>`:""}
   <div class="q hero"><img alt="MileMarker logo" src="${LOGO}"><div><h2 style="font-size:clamp(1.9rem,6vw,3rem)">Plan your RV trip</h2><p class="hint">Answer a few quick questions. We'll plan each driving day, your breaks and places to stay — matched to who's coming along.</p><button class="btn" data-go="0">Plan a trip</button></div></div>
-  ${saved.length?`<h3 class="sec">Your trips</h3>${saved.map((t,i)=>{const ps=t.pack?packStats(t.pack):null,tot=t.plan.days.reduce((a,d)=>a+d.miles,0);return `<details class="saved"${i===0?" open":""}><summary><b>${esc(String(t.A.from).split(",")[0])} → ${esc(String(t.A.to).split(",")[0])}</b><div class="meta">${t.plan.days.length} day${t.plan.days.length===1?"":"s"} · ${tot.toLocaleString()} miles${t.A.when?" · leaves "+fmtD(t.A.when):""}${ps?` · packed ${ps.done}/${ps.total}`:""}</div></summary>
+  ${saved.length?`<h3 class="sec">Your trips</h3>${saved.map((t,i)=>{const ps=t.pack?packStats(t.pack):null,tot=t.plan.days.reduce((a,d)=>a+d.miles,0);return `<div class="savedc"><details class="saved"><summary><b>${esc(String(t.A.from).split(",")[0])} → ${esc(String(t.A.to).split(",")[0])}</b><div class="meta">${t.plan.days.length} day${t.plan.days.length===1?"":"s"} · ${tot.toLocaleString()} miles${t.A.when?" · leaves "+fmtD(t.A.when):""}${ps?` · packed ${ps.done}/${ps.total}`:""}</div><span class="peek">Quick look at the days ▾</span></summary>
     <ol class="tl">${t.plan.days.map((d,k)=>`<li><time>Day ${k+1}</time><span>${t.A.when?esc(fmtD(addDays(t.A.when,k)))+" · ":""}${esc(d.from)} → ${esc(d.to)} · ${d.miles} mi${d.stays&&d.stays[0]?` · stay: ${esc(d.stays[0].name)}`:""}</span></li>`).join("")}</ol>
-    <div class="row"><button class="btn sm" data-open="${i}">Open itinerary</button><button class="btn ghost sm" data-openpack="${i}">${t.pack?"Packing list":"Build packing list"}</button></div></details>`}).join("")}`:""}`}
+    </details><div class="row tripbtns"><button class="btn ghost sm" data-edittrip="${i}">✎ Edit trip</button><button class="btn sm" data-open="${i}">View itinerary</button><button class="btn ghost sm" data-openpack="${i}">${t.pack?`Packing · ${ps.total?Math.round(ps.done/ps.total*100):0}%`:"Packing list"}</button></div></div>`}).join("")}`:""}`}
 function question(){const k=flow[step],n=step+1,last=step===flow.length-1;let body="",ok=true;
   if(k==="to"){body=`<h2>Where do you want to go?</h2><p class="hint">Type a full address, a city, or a park.</p><input type="text" id="inp" list="pl" autocomplete="off" value="${esc(A.to)}" placeholder="e.g. Great Smoky Mountains NP, TN"><datalist id="pl">${PLACES.map(p=>`<option value="${esc(p[0])}">`).join("")}</datalist><div class="chips">${POPULAR.map(p=>`<button class="chip" data-fill="${esc(p)}">${esc(p.replace(" NP"," National Park").split(",")[0])}</button>`).join("")}</div>`;ok=!!A.to.trim()}
   if(k==="from"){body=`<h2>Where are you starting from?</h2><p class="hint">Your home address, campground or city.</p><input type="text" id="inp" list="pl" autocomplete="off" value="${esc(A.from)}" placeholder="e.g. 123 Main St, Tampa, FL"><datalist id="pl">${PLACES.map(p=>`<option value="${esc(p[0])}">`).join("")}</datalist>`;ok=!!A.from.trim()}
@@ -602,6 +624,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
   else if(d.nodate){A.when="";render()}
   else if(d.route!==undefined){const i=+d.route;if(i===routeIx)return;routeIx=i;const r=plan.routes[i];if(plan.ai&&(sampleFn||AI_ENDPOINT))build(`${r.name} via ${r.via}`);else if(!plan.ai){const keep=plan.routes;const np=offlinePlan(r.viaLabel||null);if(np&&!np.error){np.routes=keep;plan=np}render()}else render()}
   else if(d.save){const prev=ui.savedIx!=null?saved[ui.savedIx]:null;const entry={id:(prev&&prev.id)||uid(),A:{...A},plan,at:Date.now(),pack:prev&&prev.pack};if(!prev)ui.askPack=true;if(me)Store.saveTrip(entry).catch(()=>toast("Saved on this device only"));if(ui.savedIx!=null)saved[ui.savedIx]=entry;else{saved.unshift(entry);ui.savedIx=0;xp+=20;toast("+20 · Trip saved")}persist();render()}
+  else if(d.edittrip!==undefined){const ix=+d.edittrip,t=saved[ix];A={...t.A};plan=t.plan;routeIx=0;ui.savedIx=ix;ui.askPack=false;ui.tab="plan";ui.edit=0;render();setTimeout(()=>{document.querySelector('[data-dayform="0"]')?.scrollIntoView({block:"center"});toast("Editing — change any day's stop or miles")},30)}
   else if(d.open!==undefined||d.openpack!==undefined){const ix=+(d.open??d.openpack),t=saved[ix];A={...t.A};plan=t.plan;routeIx=0;ui.savedIx=ix;ui.askPack=false;ui.tab=d.openpack!==undefined?"pack":"plan";if(ui.tab==="pack"&&!t.pack)startPackSetup();render();scrollTo(0,0)}
   else if(d.tab){ui.tab=d.tab;if(d.tab==="pack"&&!cur().pack)startPackSetup();render();scrollTo(0,0)}
   else if(d.packyes){ui.askPack=false;startPackSetup();ui.tab="pack";render();scrollTo(0,0)}
@@ -612,10 +635,11 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
   else if(d.packback){if(ui.packSetup.step>0){ui.packSetup.step--}else{ui.packSetup=null;if(!cur().pack)ui.tab="plan"}render();scrollTo(0,0)}
   else if(d.packnext){const s2=ui.packSetup;if(s2.step===0){const bad=s2.travelers.some(t=>t.age===""||!(+t.age>=0&&+t.age<=110));if(bad){toast("Add an age for each person");return}s2.step=1;render();scrollTo(0,0)}
     else{const e=cur(),tr=s2.travelers.map(t=>({name:String(t.name||"").trim().slice(0,30),age:Math.round(+t.age)})),items=buildPack(e,tr,s2.diet),first=!e.pack;
-      e.pack={travelers:tr,diet:[...s2.diet],items:e.pack?mergePack(e.pack.items,items):items,awarded:e.pack&&e.pack.awarded};ui.packSetup=null;ui.tab="pack";if(first){xp+=10;toast("+10 · Packing list ready")}savePack();render();scrollTo(0,0)}}
+      e.pack={travelers:tr,diet:[...s2.diet],items:e.pack?mergePack(e.pack.items,items):items,awarded:e.pack&&e.pack.awarded,ms:(e.pack&&e.pack.ms)||{}};ui.packSetup=null;ui.tab="pack";if(first){xp+=10;toast("+10 · Packing list ready")}savePack();render();scrollTo(0,0)}}
   else if(d.packonly!==undefined){ui.packOnly=d.packonly==="1";render()}
   else if(d.packedit){const e=cur();ui.packSetup={step:0,travelers:e.pack.travelers.map(t=>({...t})),diet:[...e.pack.diet]};render();scrollTo(0,0)}
   else if(d.pnote){ui.noteFor=ui.noteFor===d.pnote?null:d.pnote;render();const f=document.querySelector(`[data-noteform="${d.pnote}"] input`);if(f)f.focus()}
+  else if(d.pwho){const p=cur().pack,[id,i]=d.pwho.split(":"),x=p.items.find(y=>y.id===id);if(!x||!x.who)return;x.who[+i]=!x.who[+i];x.done=x.who.every(Boolean);if(x.who[+i])checkMilestones(p);const st=packStats(p);if(st.total&&st.done===st.total&&!p.awarded){p.awarded=true;xp+=30;setTimeout(()=>toast("+30 · Packed and ready!"),1900)}savePack();const y=scrollY;render();scrollTo(0,y)}
   else if(d.pdel){const e=cur();e.pack.items=e.pack.items.filter(x=>x.id!==d.pdel);savePack();render()}
   else if(d.restart){plan=null;step=-1;ui.savedIx=null;A={to:"",from:A.from,drive:A.drive,driveCustom:A.driveCustom,breaks:A.breaks,who:A.who,pets:A.pets,when:""};render();scrollTo(0,0)}
   else if(d.edit!==undefined){ui.edit=+d.edit;render();document.querySelector(`[data-dayform="${d.edit}"]`)?.scrollIntoView({block:"center"})}
@@ -630,7 +654,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
 });
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="inp"){A[flow[step]]=t.value;const n=$("[data-next]");if(n)n.disabled=!t.value.trim()}if(t.id==="custom"&&t.value){document.querySelectorAll("[data-drive]").forEach(x=>x.classList.remove("on"))}});
 document.addEventListener("change",e=>{if(e.target.id==="pets")A.pets=e.target.checked;if(e.target.id==="when"){A.when=e.target.value;document.querySelector("[data-nodate]")?.classList.toggle("on",!A.when)}});
-document.addEventListener("change",e=>{const el=e.target;if(el.dataset&&el.dataset.pdone){const p=cur().pack,x=p.items.find(y=>y.id===el.dataset.pdone);if(!x)return;x.done=el.checked;const st=packStats(p);if(st.total&&st.done===st.total&&!p.awarded){p.awarded=true;xp+=30;setTimeout(()=>toast("+30 · Packed and ready!"),50)}savePack();const y=scrollY;render();scrollTo(0,y)}});
+document.addEventListener("change",e=>{const el=e.target;if(el.dataset&&el.dataset.pdone){const p=cur().pack,x=p.items.find(y=>y.id===el.dataset.pdone);if(!x)return;x.done=el.checked;if(x.who)x.who=x.who.map(()=>el.checked);if(el.checked)checkMilestones(p);const st=packStats(p);if(st.total&&st.done===st.total&&!p.awarded){p.awarded=true;xp+=30;setTimeout(()=>toast("+30 · Packed and ready!"),50)}savePack();const y=scrollY;render();scrollTo(0,y)}});
 document.addEventListener("input",e=>{const el=e.target;if(!ui.packSetup)return;if(el.dataset.tname!==undefined)ui.packSetup.travelers[+el.dataset.tname].name=el.value;if(el.dataset.tage!==undefined)ui.packSetup.travelers[+el.dataset.tage].age=el.value});
 document.addEventListener("submit",e=>{const f=e.target;if(f.dataset.noteform!==undefined){e.preventDefault();const x=cur().pack.items.find(y=>y.id===f.dataset.noteform);if(x)x.note=String(new FormData(f).get("note")||"").trim().slice(0,200);ui.noteFor=null;savePack();const y=scrollY;render();scrollTo(0,y);return}
   if(f.dataset.addform!==undefined){e.preventDefault();const t=String(new FormData(f).get("item")||"").trim().slice(0,80);if(!t)return;cur().pack.items.push({id:uid(),cat:f.dataset.addform,text:t,qty:"",note:"",done:false,why:"",custom:true});cur().pack.awarded=cur().pack.awarded;savePack();const y=scrollY;render();scrollTo(0,y);const nf=document.querySelector(`[data-addform="${f.dataset.addform}"] input`);if(nf)nf.focus();return}});
