@@ -258,13 +258,39 @@ function midTown(a,b,f){const A1=findPlace(a),B1=findPlace(b);if(!A1||!B1)return
 function rebalance(p,n){const tot=p.days.reduce((a,d)=>a+d.miles,0),start=p.days[0].from,end=p.days[p.days.length-1].to,lastStays=p.days[p.days.length-1].stays,rate=hrsOf(p.days[0]),out=[];let prev=start;
   for(let i=1;i<=n;i++){const to=i===n?end:(midTown(start,end,i/n)||`Stop near mile ${Math.round(tot*i/n)}`),m=Math.round(tot/n);out.push({from:prev,to,miles:m,hours:+(m*rate).toFixed(1),breaks:[],stays:i===n?lastStays:[],tip:""});prev=to}
   return{...p,days:out}}
+/* ===== road miles for edits: OpenStreetMap routing, map estimate as fallback ===== */
+const ROUTER="https://routing.openstreetmap.de/routed-car/route/v1/driving/";
+let lastRoute=0;const routeCache={};
+async function legMiles(names){const pts=names.map(n=>findPlace(n));if(pts.some(p=>!p))return null;
+  const est=()=>({miles:pts.slice(1).map((p,k)=>Math.max(1,Math.round(hav(pts[k],p)*1.2))),src:"estimate"});
+  const key=pts.map(p=>p.lat.toFixed(3)+","+p.lon.toFixed(3)).join(";");if(routeCache[key])return routeCache[key];
+  try{const wait=Math.max(0,1100-(Date.now()-lastRoute));if(wait)await new Promise(r=>setTimeout(r,wait));lastRoute=Date.now();
+    const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),7000);
+    const r=await fetch(ROUTER+pts.map(p=>p.lon.toFixed(5)+","+p.lat.toFixed(5)).join(";")+"?overview=false&steps=false",{signal:ctl.signal});clearTimeout(t);
+    if(!r.ok)throw 0;const j=await r.json(),legs=j&&j.code==="Ok"&&j.routes&&j.routes[0]&&j.routes[0].legs;
+    if(!Array.isArray(legs)||legs.length!==pts.length-1||!legs.every(l=>isFinite(l.distance)&&l.distance>0))throw 0;
+    return routeCache[key]={miles:legs.map(l=>Math.max(1,Math.round(l.distance/1609.344))),src:"road"}}catch(e){return est()}}
+const ROUTE_CREDIT=`Road miles: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">OSRM</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>`;
+let calcT=null,calcSeq=0;
+async function calcEdit(i){const f=document.querySelector(`[data-dayform="${i}"]`);if(!f||!plan)return;const d=plan.days[i],nx=plan.days[i+1],to=f.querySelector("[name=to]").value.trim(),st=f.querySelector(".calc"),mi=f.querySelector("[name=miles]"),seq=++calcSeq;
+  ui.calc=null;if(!to){st.textContent="";return}
+  if(!findPlace(to)){st.innerHTML="Pick a place from the list to calculate miles, or type the miles yourself.";return}
+  if(nx&&norm(nx.to)===norm(to)){st.textContent=`That's where day ${i+2} ends — saving will combine the two days.`;return}
+  if(norm(d.from)===norm(to)){st.textContent="Choose a stop different from where this day starts.";return}
+  st.textContent="Calculating miles…";const res=await legMiles(nx?[d.from,to,nx.to]:[d.from,to]);
+  if(seq!==calcSeq||!document.body.contains(f))return;
+  if(!res){st.textContent="Couldn't calculate miles for that place — type them yourself.";return}
+  mi.value=res.miles[0];ui.calc={i,to,m1:res.miles[0],m2:res.miles[1]??null};
+  st.innerHTML=`<b>${res.miles[0]} mi</b> to ${esc(to.split(",")[0])}${nx?` · then <b>${res.miles[1]} mi</b> on day ${i+2} to ${esc(nx.to.split(",")[0])}`:""}. ${res.src==="road"?ROUTE_CREDIT:"Map estimate — road distance may differ."}`}
 function splitDay(i){const d=plan.days[i],to=midTown(d.from,d.to,.5)||`Stop near mile ${Math.round(d.miles/2)}`,m1=Math.round(d.miles/2),r=hrsOf(d);
-  plan.days.splice(i,1,{from:d.from,to,miles:m1,hours:+(m1*r).toFixed(1),breaks:d.breaks.slice(0,Math.ceil(d.breaks.length/2)),stays:[],tip:""},{...d,from:to,miles:d.miles-m1,hours:+((d.miles-m1)*r).toFixed(1),breaks:d.breaks.slice(Math.ceil(d.breaks.length/2))});edited()}
+  plan.days.splice(i,1,{from:d.from,to,miles:m1,hours:+(m1*r).toFixed(1),breaks:d.breaks.slice(0,Math.ceil(d.breaks.length/2)),stays:[],tip:""},{...d,from:to,miles:d.miles-m1,hours:+((d.miles-m1)*r).toFixed(1),breaks:d.breaks.slice(Math.ceil(d.breaks.length/2))});edited();
+  const a=plan.days[i],b=plan.days[i+1],pl=plan;legMiles([a.from,a.to,b.to]).then(res=>{if(!res||plan!==pl||plan.days[i]!==a||plan.days[i+1]!==b)return;a.miles=res.miles[0];a.hours=+(a.miles*r).toFixed(1);b.miles=res.miles[1];b.hours=+(b.miles*r).toFixed(1);edited();toast(res.src==="road"?"Road miles updated":"Miles estimated from the map")})}
 function mergeDay(i){const d=plan.days[i],n=plan.days[i+1];if(!n)return;plan.days.splice(i,2,{from:d.from,to:n.to,miles:d.miles+n.miles,hours:+((d.hours||d.miles/SPEED)+(n.hours||n.miles/SPEED)).toFixed(1),breaks:d.breaks.concat(n.breaks),stays:n.stays,tip:n.tip});edited()}
-function saveDay(i,to,miles){const d=plan.days[i],nx=plan.days[i+1],r=hrsOf(d),delta=miles-d.miles;let note="";
+function saveDay(i,to,miles,nextMiles){const d=plan.days[i],nx=plan.days[i+1],r=hrsOf(d),delta=miles-d.miles;let note="";
   if(to&&to!==d.to){d.to=to;d.stays=[];d.tip="";if(nx){if(norm(nx.to)===norm(to)){d.stays=nx.stays;d.tip=nx.tip;plan.days.splice(i+1,1);d.miles=miles;d.hours=+(miles*r).toFixed(1);edited();toast("Merged — you reach "+to.split(",")[0]+" on day "+(i+1));return}nx.from=to}}
   d.miles=miles;d.hours=+(miles*r).toFixed(1);
-  if(nx&&delta){const nm=Math.max(1,nx.miles-delta);nx.hours=+(nm*hrsOf(nx)).toFixed(1);nx.miles=nm;note=`Day ${i+2} changed to ${nm} miles to keep the trip total.`}
+  if(nx&&nextMiles>0){const rn=hrsOf(nx);nx.miles=nextMiles;nx.hours=+(nextMiles*rn).toFixed(1);note=`Day ${i+2} recalculated: ${nextMiles} mi`}
+  else if(nx&&delta){const nm=Math.max(1,nx.miles-delta);nx.hours=+(nm*hrsOf(nx)).toFixed(1);nx.miles=nm;note=`Day ${i+2} changed to ${nm} miles to keep the trip total.`}
   edited();if(note)toast(note.length>40?`Day ${i+2} now ${nx.miles} mi`:note)}
 function edited(){plan.edited=true;ui.edit=null;if(ui.savedIx!=null){const e={id:saved[ui.savedIx].id||uid(),A:{...A},plan,at:Date.now()};saved[ui.savedIx]=e;persist();if(me)Store.saveTrip(e).catch(()=>{})}render()}
 async function findStays(i){const d=plan.days[i],st=style();ui.stayBusy=i;render();
@@ -318,7 +344,7 @@ function result(){const p=plan,st=style(),tot=p.days.reduce((a,d)=>a+d.miles,0),
     ${ui.edit===i?`<form class="stay" data-dayform="${i}" style="background:var(--soft)"><b>Edit day ${i+1}</b>
       <label class="meta" style="display:block;margin-top:8px">${i===p.days.length-1?"Destination":"Stop for the night at"}<input type="text" name="to" list="pl2" value="${esc(d.to)}" ${i===p.days.length-1?"readonly":""}></label>
       <label class="meta" style="display:block;margin-top:8px">Miles this day<input type="number" name="miles" min="1" max="1500" inputmode="numeric" value="${d.miles}"></label>
-      ${i<p.days.length-1?`<p class="meta" style="margin:6px 0 0">Day ${i+2} adjusts so the trip total stays the same.</p>`:""}
+      <p class="meta calc" aria-live="polite" style="margin:6px 0 0">${i<p.days.length-1?"Pick a new stop and we'll calculate the miles for this day and the next.":"Change the miles if your route differs."}</p>
       <div class="row"><button class="btn sm">Save day</button><button class="btn ghost sm" type="button" data-canceledit="1">Cancel</button></div>
       <div class="row"><button class="btn ghost sm" type="button" data-split="${i}">Add a stop (split this day)</button>${i<p.days.length-1?`<button class="btn ghost sm" type="button" data-merge="${i}">Merge with day ${i+2}</button>`:""}</div></form>`:""}
     <div class="row"><a class="btn sm" href="${gmaps(d.from,d.to)}" target="_blank" rel="noopener">Navigate this day</a>${ui.edit===i?"":`<button class="btn ghost sm" data-edit="${i}">Edit day</button>`}</div>
@@ -457,7 +483,8 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
 });
 document.addEventListener("input",e=>{const t=e.target;if(t.id==="inp"){A[flow[step]]=t.value;const n=$("[data-next]");if(n)n.disabled=!t.value.trim()}if(t.id==="custom"&&t.value){document.querySelectorAll("[data-drive]").forEach(x=>x.classList.remove("on"))}});
 document.addEventListener("change",e=>{if(e.target.id==="pets")A.pets=e.target.checked;if(e.target.id==="when"){A.when=e.target.value;document.querySelector("[data-nodate]")?.classList.toggle("on",!A.when)}});
-document.addEventListener("submit",e=>{const f=e.target;if(f.dataset.dayform===undefined)return;e.preventDefault();const i=+f.dataset.dayform,fd=new FormData(f),m=Math.round(+fd.get("miles"));if(!(m>0))return;saveDay(i,String(fd.get("to")||"").trim(),m)});
+document.addEventListener("submit",e=>{const f=e.target;if(f.dataset.dayform===undefined)return;e.preventDefault();const i=+f.dataset.dayform,fd=new FormData(f),m=Math.round(+fd.get("miles"));if(!(m>0))return;const to=String(fd.get("to")||"").trim(),c=ui.calc;saveDay(i,to,m,c&&c.i===i&&norm(c.to)===norm(to)&&c.m2?c.m2:undefined);ui.calc=null});
+document.addEventListener("input",e=>{const f=e.target.closest&&e.target.closest("[data-dayform]");if(!f||e.target.name!=="to")return;clearTimeout(calcT);const i=+f.dataset.dayform;calcT=setTimeout(()=>calcEdit(i),450)});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="inp"){e.preventDefault();$("[data-next]")?.click()}});
 render();
 $("#chatbtn").hidden=!hasAI();renderAcct();initAccount();
