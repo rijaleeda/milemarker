@@ -141,6 +141,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,s
 .who{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;padding-left:34px}
 .wchip{font:inherit;font-size:.82rem;min-height:32px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .wchip.on{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
+.drive{background:#fff;border:2px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}.drive.on{border-color:var(--green);box-shadow:0 4px 18px rgba(0,0,0,.06)}
+.drive.done{border-color:var(--green);background:var(--soft)}.dh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 10px;align-items:baseline}.dh b{font-size:1.08rem}
+.dnext{margin:8px 0 0;line-height:1.4}.due{color:var(--warn)}.dalert{display:grid;grid-template-columns:1fr auto;gap:2px 8px;background:#fff7e0;border:1px solid #e9c46a;border-radius:10px;padding:10px;margin-bottom:10px}
+.dalert span{grid-column:1;font-size:.92rem}.dalert button{grid-row:1/3;grid-column:2;align-self:start}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;font:inherit;font-size:.85rem;padding:8px 0 0;cursor:pointer;min-height:32px}
+.tl li.done{color:var(--muted)}.tl li.now span{font-weight:700;color:var(--green)}
 .pitem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
 .pitem label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;min-height:44px}
 .pitem input[type=checkbox]{width:24px;height:24px;flex:none;margin-top:1px;accent-color:var(--green)}
@@ -448,6 +454,82 @@ function packView(){const e=cur(),p=e.pack,st=packStats(p),pct=st.total?Math.rou
     <form class="paddform" data-addform="${esc(c)}"><input type="text" name="item" maxlength="80" placeholder="Add an item to ${esc(c)}" aria-label="Add an item to ${esc(c)}"><button class="btn ghost sm">Add</button></form></details>`}).join("")}
   <p class="meta">Tip: tap “Note” to remember sizes, where something is stored, or what to buy.</p>`}
 
+/* ===== drive mode: live day, reminders, and learning from real drives ===== */
+const hourOf=ts=>{const d=new Date(ts);return d.getHours()+d.getMinutes()/60+d.getSeconds()/3600};
+const mins=h=>{const m=Math.max(0,Math.round(h*60));return m>=60?`${Math.floor(m/60)} hr${m>=120?"s":""}${m%60?` ${m%60} min`:""}`:`${m} min`};
+let learnCache=null;
+function learned(){if(learnCache!==null)return learnCache||null;
+  let ph=0,ah=0,mi=0,n=0;const bm=[],starts=[];
+  saved.forEach(t=>((t.plan&&t.plan.days)||[]).forEach(d=>{const L=d.log;if(!L||!L.start||!L.end)return;
+    const brk=(L.breaks||[]).filter(b=>b.e).reduce((a,b)=>a+(b.e-b.s),0),drive=(L.end-L.start-brk)/36e5;if(drive<0.25||drive>16)return;
+    ph+=L.planH||d.hours||d.miles/SPEED;ah+=drive;mi+=d.miles;n++;starts.push(hourOf(L.start));
+    (L.breaks||[]).forEach(b=>{if(b.e&&!b.lunch){const m=(b.e-b.s)/6e4;if(m>=2&&m<=120)bm.push(m)}})}));
+  if(!n){learnCache=false;return null}
+  learnCache={days:n,pace:Math.min(1.4,Math.max(0.8,ah/ph)),mph:Math.round(mi/ah),
+    brkMin:bm.length?Math.round(Math.min(60,Math.max(10,bm.reduce((a,b)=>a+b,0)/bm.length))):BREAKMIN,
+    start:starts.reduce((a,b)=>a+b,0)/starts.length};return learnCache}
+const planH=d=>(d.hours||d.miles/SPEED)*((learned()||{}).pace||1);
+const brkH=()=>((learned()||{}).brkMin||BREAKMIN)/60;
+const isLunchHour=h=>h>=11.5&&h<13.6;
+
+/* Live view of a day that has been started. Breaks are spaced by driving time since the last real break,
+   so a long or late break pushes everything after it. */
+function liveDay(d,st,now){const L=d.log,H=L.planH?L.planH*((learned()||{}).pace||1):planH(d),mph=d.miles/H,brs=L.breaks||[],open=brs.find(b=>!b.e),end=L.end||now;
+  const brkTime=brs.reduce((a,b)=>a+((b.e||end)-b.s),0),driven=Math.max(0,Math.min(H,(end-L.start-brkTime)/36e5));
+  const items=[[hourOf(L.start),`Left ${d.from}`,"done"]];
+  brs.forEach(b=>items.push([hourOf(b.s),`${b.lunch?"Lunch break":"Break"}${b.mi?` · mile ${b.mi}`:""}${b.e?` · ${mins((b.e-b.s)/36e5)}`:" — on break now"}`,b.e?"done":"now"]));
+  if(L.end){items.push([hourOf(L.end),`Arrived ${d.to}`,"done"]);return{items,done:true,driven,mph,H,arrive:hourOf(L.end),toGo:0}}
+  let t=hourOf(now),lunchDone=brs.some(b=>b.lunch);
+  if(open)t+=Math.max(0,(open.lunch?st.lunch:brkH())-(now-open.s)/36e5);
+  const last=brs.filter(b=>b.e).pop(),since=open?0:Math.max(0,(now-(last?last.e:L.start))/36e5);
+  let rem=H-driven,c=0,first=Math.max(0,st.brk-since),next=null;const fut=[];
+  for(let gap=first;rem-gap>0.5;gap=st.brk){t+=gap;c+=gap;rem-=gap;const lunch=!lunchDone&&isLunchHour(t);if(lunch)lunchDone=true;
+    fut.push([t,`${lunch?"Lunch break":"Break"} · about mile ${Math.round((driven+c)*mph)}`,"next",{kind:"break",lunch,mi:Math.round((driven+c)*mph),away:c*mph,at:t}]);
+    t+=lunch?st.lunch:brkH()}
+  t+=rem;c+=rem;fut.push([t,`Arrive ${d.to}`,"next",{kind:"arrive",away:c*mph,at:t}]);
+  items.push(...fut);next=fut[0][3];
+  return{items,done:false,open,driven,mph,H,next,arrive:t,toGo:Math.max(0,d.miles-driven*mph),nowH:hourOf(now)}}
+
+function activeDrive(){for(const t of saved)for(const [i,d] of ((t.plan&&t.plan.days)||[]).entries())if(d.log&&d.log.start&&!d.log.end)return{t,i,d};return null}
+function saveDrive(){learnCache=null;persist();const a=activeDrive(),e=a?a.t:cur();if(me&&e)Store.saveTrip(e).catch(()=>{})}
+function notify(title,body){try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+  let shown=false;try{if("Notification" in window&&Notification.permission==="granted"){new Notification(title,{body,tag:"mm-drive"});shown=true}}catch(e){}
+  ui.alert={title,body,at:Date.now()};toast(title);if(!shown||document.visibilityState==="visible")render()}
+function driveTick(){const a=activeDrive();if(!a)return;const L=a.d.log;L.notified=L.notified||{};const st=style(),lv=liveDay(a.d,st,Date.now()),n=lv.next;if(!n)return;
+  const inMin=(n.at-lv.nowH)*60,key=n.kind==="arrive"?"arr":"b"+((L.breaks||[]).length+1);let changed=false;
+  if(!lv.open&&n.kind==="break"){
+    if(inMin<=30&&inMin>1&&!L.notified[key+"-30"]){L.notified[key+"-30"]=1;changed=true;notify(`${n.lunch?"Lunch stop":"Next break"} in ${Math.round(inMin)} min`,`About ${Math.round(n.away)} miles away, near mile ${n.mi}. Start looking for a rest area or a safe exit.`)}
+    else if(inMin<=1&&!L.notified[key+"-now"]){L.notified[key+"-now"]=1;changed=true;notify(`Time for a ${n.lunch?"lunch ":""}break`,`You've driven ${mins(st.brk)}. Pull over when it's safe and tap “Start break”.`)}}
+  if(n.kind==="arrive"&&inMin<=30&&inMin>0&&!L.notified["arr-30"]){L.notified["arr-30"]=1;changed=true;notify(`${a.d.to.split(",")[0]} in about ${Math.round(inMin)} min`,`About ${Math.round(n.away)} miles to go. Have the campground's check-in info ready.`)}
+  if(lv.open&&!L.notified["end"+lv.open.s]&&(Date.now()-lv.open.s)/6e4>=(lv.open.lunch?st.lunch*60:brkH()*60)){L.notified["end"+lv.open.s]=1;changed=true;notify("Break time is up",`Tap “End break” when you're back on the road — we'll update your times.`)}
+  if(changed)saveDrive();
+  const f=document.activeElement;if(!(f&&f.closest&&f.closest("form"))&&plan&&ui.tab!=="pack")render()}
+setInterval(driveTick,30000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")driveTick()});
+
+function driveCard(){const e=cur(),st=style();
+  if(!e)return `<div class="drive"><b>🚐 Driving this trip?</b><p class="meta" style="margin:4px 0 0">Save the trip, then tap “Start day” each morning. We'll remind you 30 minutes before each stop and update your times as you go.</p></div>`;
+  const a=activeDrive();
+  if(a&&a.t!==e)return `<div class="drive"><b>🚐 You're on the road</b><p class="meta" style="margin:4px 0 0">Day ${a.i+1} of another trip is in progress: ${esc(a.d.from)} → ${esc(a.d.to)}.</p></div>`;
+  const al=ui.alert&&Date.now()-ui.alert.at<15*6e4?`<div class="dalert" role="alert"><b>${esc(ui.alert.title)}</b><span>${esc(ui.alert.body)}</span><button class="btn ghost sm" data-dismiss="1" aria-label="Dismiss">✕</button></div>`:"";
+  const perm="Notification" in window&&Notification.permission==="default"?`<button class="btn ghost sm" data-notify="1">🔔 Turn on alerts</button>`:"";
+  if(a){const d=a.d,lv=liveDay(d,st,Date.now()),n=lv.next,inMin=n?(n.at-lv.nowH)*60:0;
+    return `<div class="drive on">${al}<div class="dh"><b>🚐 Day ${a.i+1} · ${lv.open?"on a break":"on the road"}</b><span class="meta">${mins(lv.driven)} driven · ${Math.round(lv.driven*lv.mph)} mi</span></div>
+    ${lv.open?`<p class="dnext">☕ ${lv.open.lunch?"Lunch":"Break"} for ${mins((Date.now()-lv.open.s)/36e5)} <span class="meta">· planned ${mins(lv.open.lunch?st.lunch:brkH())}</span></p>`
+      :n&&n.kind==="break"?`<p class="dnext">Next: <b>${n.lunch?"Lunch break":"Break"}</b> ${inMin<=1?"<b class=\"due\">now</b>":`in ${mins(inMin/60)}`} · about ${Math.round(n.away)} mi away <span class="meta">(${clock(n.at)}, near mile ${n.mi})</span></p>`:""}
+    <p class="dnext">Arrive <b>${esc(d.to.split(",")[0])}</b> about <b>${clock(lv.arrive)}</b> · ${Math.round(lv.toGo)} mi to go</p>
+    <div class="row">${lv.open?`<button class="btn" data-brkend="1">End break</button>`:`<button class="btn" data-brkstart="1">Start break</button>`}<button class="btn y" data-arrive="1">I've arrived</button>${perm}</div>
+    <p class="meta" style="margin:6px 0 0">Reminders come 30 minutes before each stop while MileMarker is open on your phone. Keep your eyes on the road — let a passenger tap the buttons.</p>
+    <button class="linkbtn" data-dreset="${a.i}">${ui.confirmReset===a.i?"Tap again to clear today's log":"Started by mistake? Clear today"}</button></div>`}
+  const p=e.plan,ix=p.days.findIndex(d=>!(d.log&&d.log.end));
+  if(ix<0){const logs=p.days.map(d=>d.log),drove=logs.reduce((s,L)=>s+(L.end-L.start-(L.breaks||[]).reduce((a,b)=>a+((b.e||L.end)-b.s),0))/36e5,0),pl=p.days.reduce((s,d)=>s+(d.log.planH||d.hours||d.miles/SPEED),0),nb=logs.reduce((s,L)=>s+(L.breaks||[]).length,0);
+    return `<div class="drive done"><b>🏁 Trip complete!</b><p class="meta" style="margin:4px 0 0">You drove ${mins(drove)} (planned ${mins(pl)}) with ${nb} break${nb===1?"":"s"}. We'll use this to time your next trip better.</p></div>`}
+  const d=p.days[ix];
+  return `<div class="drive">${al}<div class="dh"><b>Ready for day ${ix+1}?</b><span class="meta">${esc(d.from.split(",")[0])} → ${esc(d.to.split(",")[0])} · ${d.miles} mi</span></div>
+    <p class="meta" style="margin:4px 0 8px">Tap when you pull out. We'll remind you 30 minutes before each break and before you arrive, and adjust the rest of the day to your real times.</p>
+    <div class="row"><button class="btn" data-dstart="${ix}">▶ Start day ${ix+1}</button>${perm}</div></div>`}
+
+function learnedNote(){const l=learned();if(!l)return "";return `<div class="note"><b>Tuned to how you drive:</b> from ${l.days} logged day${l.days===1?"":"s"} you average about ${l.mph} mph and ${l.brkMin}-minute breaks${l.days>=2?`, usually leaving around ${clock(l.start)}`:""}. Times below use this.</div>`}
+
 /* ===== badges ===== */
 function badges(p){const tot=p.days.reduce((a,d)=>a+d.miles,0),b=["Trailblazer"];{const e=cur(),st=e&&e.pack?packStats(e.pack):null;if(st&&st.total&&st.done===st.total)b.push("Packed & Ready")}if(tot>=1000)b.push("Long Hauler");if(p.days.length>=3)b.push("Road Warrior");
   b.push({family:"Family Captain",friends:"Road Crew",seniors:"Easy Rider",couple:"Road Sweethearts",solo:"Lone Ranger"}[A.who||"couple"]);if(A.pets)b.push("Pack Leader");return b}
@@ -474,8 +556,8 @@ function question(){const k=flow[step],n=step+1,last=step===flow.length-1;let bo
   <div class="nav"><button class="btn ghost" data-back="1">← Back</button><button class="btn${last?" y":""}" data-next="1"${ok?"":" disabled"}>${last?"Build my plan":"Next →"}</button></div></div>`}
 function loading(){return `<div class="load"><svg width="220" height="90" viewBox="0 0 220 90" aria-hidden="true"><rect x="0" y="70" width="220" height="8" rx="4" fill="var(--line)"/><g class="truck"><rect x="70" y="26" width="70" height="40" rx="6" fill="var(--sign)"/><rect x="138" y="38" width="22" height="28" rx="4" fill="var(--signd)"/><rect x="80" y="34" width="16" height="12" rx="2" fill="#fff" opacity=".9"/><rect x="102" y="34" width="16" height="12" rx="2" fill="#fff" opacity=".9"/><circle cx="90" cy="68" r="8" fill="#1b1b1b"/><circle cx="148" cy="68" r="8" fill="#1b1b1b"/></g></svg><h2 style="font-size:28px">Mapping your route…</h2><p class="meta">Finding stops, breaks and places to stay.</p></div>`}
 function hhmm(h){const H=Math.floor(h),M=Math.round((h-H)*60);return String(H).padStart(2,"0")+":"+String(M).padStart(2,"0")}
-function dayTimeline(d,st){const h=d.hours||d.miles/SPEED,nb=Math.max(0,Math.ceil(h/st.brk)-1),items=[];let t=d.start!=null?d.start:START,driven=0;items.push([t,`Leave ${d.from}`]);
-  for(let i=1;i<=nb;i++){const seg=st.brk;t+=seg;driven+=seg;const b=d.breaks[i-1];const lunch=t>=12&&t<13.6&&!items.some(x=>/Lunch/.test(x[1]));items.push([t,(lunch?"Lunch break":"Break")+(b&&b.place?` · ${b.place}`:` · about mile ${Math.round(driven*SPEED)}`)+(b&&b.note?` — ${b.note}`:"")]);t+=lunch?st.lunch:BREAKMIN/60}
+function dayTimeline(d,st){if(d.log&&d.log.start){const lv=liveDay(d,st,Date.now());return{items:lv.items,arrive:lv.arrive,live:true}}const h=planH(d),nb=Math.max(0,Math.ceil(h/st.brk)-1),items=[];let t=d.start!=null?d.start:START,driven=0;items.push([t,`Leave ${d.from}`]);
+  for(let i=1;i<=nb;i++){const seg=st.brk;t+=seg;driven+=seg;const b=d.breaks[i-1];const lunch=t>=12&&t<13.6&&!items.some(x=>/Lunch/.test(x[1]));items.push([t,(lunch?"Lunch break":"Break")+(b&&b.place?` · ${b.place}`:` · about mile ${Math.round(driven*SPEED)}`)+(b&&b.note?` — ${b.note}`:"")]);t+=lunch?st.lunch:brkH()}
   t+=h-driven;items.push([t,`Arrive ${d.to}`]);return{items,arrive:t}}
 function result(){const p=plan,st=style(),tot=p.days.reduce((a,d)=>a+d.miles,0),hrs=p.days.reduce((a,d)=>a+(d.hours||d.miles/SPEED),0),bs=badges(p);
   let nightly=[];p.days.slice(0,-1).forEach(d=>{const s=d.stays.find(x=>x.priceLow!=null);if(s)nightly.push((s.priceLow+(s.priceHigh??s.priceLow))/2)});
@@ -483,6 +565,7 @@ function result(){const p=plan,st=style(),tot=p.days.reduce((a,d)=>a+d.miles,0),
   <div class="kpis"><div class="kpi"><b>${tot.toLocaleString()}</b><span>miles</span></div><div class="kpi"><b>${p.days.length}</b><span>driving day${p.days.length===1?"":"s"}</span></div><div class="kpi"><b>${Math.round(hrs)}</b><span>hours on the road</span></div></div>
   <div class="badges">${bs.map(b=>`<span class="badge">${esc(b)}</span>`).join("")}</div></div>
   ${ui.askPack&&cur()?`<div class="ask"><b style="font-size:1.1rem">Trip saved! Want help with your packing list?</b><p class="meta" style="margin:4px 0 0">Answer two quick questions and we'll build a checklist for everyone coming — clothes, toiletries, food and RV gear.</p><div class="row"><button class="btn" data-packyes="1">Yes, build my list</button><button class="btn ghost" data-packno="1">Not now</button></div></div>`:""}
+  ${driveCard()}${learnedNote()}
   ${st.notes.length?`<div class="note"><b>Adjusted for you:</b> ${st.notes.map(esc).join(" ")}</div>`:""}
   <h3 class="sec">Choose your route</h3><div class="routes">${p.routes.map((r,i)=>`<button class="route${i===routeIx?" on":""}" data-route="${i}"><b>${esc(r.name)}</b> <span class="meta">· ${r.miles?r.miles.toLocaleString()+" mi":""}${r.hours?` · ${r.hours} hrs`:""}</span><div class="meta">${esc(r.via)}${r.why?` — ${esc(r.why)}`:""}</div></button>`).join("")}</div>
   ${!p.ai?`<p class="meta">Plan made from the map. For exact roads that fit your RV, use an RV route planner.</p>`:""}
@@ -492,7 +575,7 @@ function result(){const p=plan,st=style(),tot=p.days.reduce((a,d)=>a+d.miles,0),
   ${p.edited?`<p class="meta">You've edited this plan. Totals and times are updated.</p>`:""}
   <div class="strip">${stripSVG(p)}</div><datalist id="pl2">${PLACES.map(x=>`<option value="${esc(x[0])}">`).join("")}</datalist>
   ${p.days.map((d,i)=>{const tl=dayTimeline(d,st),date=A.when?addDays(A.when,i):"",late=tl.arrive>duskHour(date,(findPlace(d.to)||(i===p.days.length-1?p.to:null)||{}).lat);return `<div class="day" id="day-${i+1}"><h3>Day ${i+1}${date?` · ${fmtD(date)}`:""}</h3><div class="leg">${esc(d.from)} → ${esc(d.to)} · ${d.miles} mi · ${(d.hours||d.miles/SPEED).toFixed(1)} hrs driving</div>
-    <ol class="tl">${tl.items.map(x=>`<li><time>${clock(x[0])}</time><span>${esc(x[1])}</span></li>`).join("")}</ol>
+    <ol class="tl">${tl.items.map(x=>`<li${x[2]?` class="${x[2]}"`:""}><time>${clock(x[0])}</time><span>${x[2]==="done"?"✓ ":""}${esc(x[1])}</span></li>`).join("")}</ol>${tl.live&&!(d.log&&d.log.end)?`<p class="meta" style="margin:0 0 6px">Live — times after now update as you drive.</p>`:""}
     ${d.miles>st.cap*1.1?`<p class="note" style="color:var(--warn)">Longer than your ${st.cap}-mile daily limit — consider an extra overnight stop on this day.</p>`:""}${late&&(st.who==="family"||st.who==="seniors")?`<p class="warning">You may arrive after dark${date?"":" (checked against 6:30 PM until you pick a date)"} — consider leaving earlier or a shorter day.</p>`:""}${d.tip?`<p class="note">${esc(d.tip)}</p>`:""}
     ${ui.edit===i?`<form class="stay" data-dayform="${i}" style="background:var(--soft)"><b>Edit day ${i+1}</b>
       <label class="meta" style="display:block;margin-top:8px">${i===p.days.length-1?"Destination":"Stop for the night at"}<input type="text" name="to" list="pl2" value="${esc(d.to)}" ${i===p.days.length-1?"readonly":""}></label>
@@ -608,7 +691,7 @@ function applyAction(a){if(!a||typeof a!=="object")return "";const day=n=>{const
   return ""}
 function startPackSetup(){const e=cur();ui.packSetup={step:0,travelers:e.pack?e.pack.travelers.map(t=>({...t})):defaultTravelers(e),diet:e.pack?[...e.pack.diet]:[]}}
 function tabsHTML(){const e=cur();if(!e)return "";const st=e.pack?packStats(e.pack):null;return `<div class="tabs" role="tablist"><button role="tab" aria-selected="${ui.tab!=="pack"}" class="${ui.tab!=="pack"?"on":""}" data-tab="plan">Itinerary</button><button role="tab" aria-selected="${ui.tab==="pack"}" class="${ui.tab==="pack"?"on":""}" data-tab="pack">Packing list${st?` · ${st.total?Math.round(st.done/st.total*100):0}%`:""}</button></div>`}
-function render(){$("#app").innerHTML=busy?loading():plan?(cur()&&ui.tab==="pack"?tabsHTML()+(ui.packSetup?packSetupView():cur().pack?packView():packSetupView()):tabsHTML()+result()):step<0?home():question();const i=$("#inp");if(i&&!("ontouchstart" in window))i.focus()}
+function render(){learnCache=null;$("#app").innerHTML=busy?loading():plan?(cur()&&ui.tab==="pack"?tabsHTML()+(ui.packSetup?packSetupView():cur().pack?packView():packSetupView()):tabsHTML()+result()):step<0?home():question();const i=$("#inp");if(i&&!("ontouchstart" in window))i.focus()}
 
 /* ===== events ===== */
 function earn(k){if(!answered[k]){answered[k]=1;xp+=10;persist();toast("+10 · Mile marker "+(flow.indexOf(k)+1))}}
@@ -642,6 +725,14 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
   else if(d.packedit){const e=cur();ui.packSetup={step:0,travelers:e.pack.travelers.map(t=>({...t})),diet:[...e.pack.diet]};render();scrollTo(0,0)}
   else if(d.pnote){ui.noteFor=ui.noteFor===d.pnote?null:d.pnote;render();const f=document.querySelector(`[data-noteform="${d.pnote}"] input`);if(f)f.focus()}
   else if(d.pwho){const p=cur().pack,[id,i]=d.pwho.split(":"),x=p.items.find(y=>y.id===id);if(!x||!x.who)return;x.who[+i]=!x.who[+i];x.done=x.who.every(Boolean);if(x.who[+i])checkMilestones(p);const st=packStats(p);if(st.total&&st.done===st.total&&!p.awarded){p.awarded=true;xp+=30;setTimeout(()=>toast("+30 · Packed and ready!"),1900)}savePack();const y=scrollY;render();scrollTo(0,y)}
+  else if(d.dstart!==undefined){const e=cur(),i=+d.dstart,dd=e&&e.plan.days[i];if(!dd)return;if(activeDrive()){toast("Finish the day you're driving first");return}
+    dd.log={start:Date.now(),breaks:[],planH:dd.hours||dd.miles/SPEED,planStart:dd.start!=null?dd.start:START,notified:{}};ui.confirmReset=null;xp+=5;saveDrive();toast(`+5 · Day ${i+1} started — drive safe!`);render();scrollTo(0,0)}
+  else if(d.brkstart){const a=activeDrive();if(!a)return;const lv=liveDay(a.d,style(),Date.now()),now=Date.now();a.d.log.breaks.push({s:now,mi:Math.round(lv.driven*lv.mph),lunch:!a.d.log.breaks.some(b=>b.lunch)&&isLunchHour(hourOf(now))});ui.alert=null;saveDrive();render()}
+  else if(d.brkend){const a=activeDrive();if(!a)return;const b=a.d.log.breaks.find(x=>!x.e);if(b)b.e=Date.now();ui.alert=null;saveDrive();toast("Back on the road — times updated");render()}
+  else if(d.arrive){const a=activeDrive();if(!a)return;const L=a.d.log,now=Date.now();L.breaks.forEach(b=>{if(!b.e)b.e=now});L.end=now;ui.alert=null;xp+=15;saveDrive();toast(`+15 · Day ${a.i+1} done — welcome to ${a.d.to.split(",")[0]}!`);render();scrollTo(0,0)}
+  else if(d.notify){try{Notification.requestPermission().then(()=>render())}catch(e){toast("Alerts aren't available in this browser")}}
+  else if(d.dismiss){ui.alert=null;render()}
+  else if(d.dreset!==undefined){const i=+d.dreset;if(ui.confirmReset!==i){ui.confirmReset=i;render();return}const a=activeDrive();if(a&&a.i===i){delete a.d.log;ui.confirmReset=null;saveDrive();toast("Today's log cleared");render()}}
   else if(d.pdel){const e=cur();e.pack.items=e.pack.items.filter(x=>x.id!==d.pdel);savePack();render()}
   else if(d.restart){plan=null;step=-1;ui.savedIx=null;A={to:"",from:A.from,drive:A.drive,driveCustom:A.driveCustom,breaks:A.breaks,who:A.who,pets:A.pets,when:""};render();scrollTo(0,0)}
   else if(d.edit!==undefined){ui.edit=+d.edit;render();document.querySelector(`[data-dayform="${d.edit}"]`)?.scrollIntoView({block:"center"})}
