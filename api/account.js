@@ -8,6 +8,8 @@ export const DELETE = handle(async req => {
   await sql`DELETE FROM messages WHERE user_id = ${uid}`;
   await sql`DELETE FROM trips WHERE user_id = ${uid}`;
   await sql`DELETE FROM usage WHERE user_id = ${uid}`;
+  const u = (await sql`SELECT email FROM users WHERE id = ${uid}`)[0];
+  if (u && u.email) await sql`DELETE FROM email_codes WHERE email = ${String(u.email).toLowerCase()}`;
   await sql`DELETE FROM users WHERE id = ${uid}`;
   return empty();
 });

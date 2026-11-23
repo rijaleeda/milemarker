@@ -123,7 +123,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,s
 /* account dialog */
 #authwrap{position:fixed;inset:0;z-index:40;background:#001927bb;display:grid;place-items:center;padding:12px}#authwrap[hidden]{display:none}
 #auth{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:17px;padding:20px;width:min(480px,100%);max-height:90dvh;overflow:auto}
-#auth h2{font-size:1.6rem;font-weight:900;margin-bottom:6px}#auth ul{margin:8px 0 14px;padding-left:20px}#auth li{margin:4px 0}
+#auth h2{font-size:1.6rem;font-weight:900;margin-bottom:6px}.abrand{display:flex;gap:12px;align-items:center;margin-bottom:14px}.abrand img{border-radius:12px}.abrand b{display:block;font-size:1.15rem}.abrand .meta{display:block}
+.aform{display:grid;gap:10px;margin:10px 0}.aform label{display:grid;gap:4px;font-weight:600;font-size:.95rem}.aform fieldset{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:8px;margin:0}.aform legend{font-weight:700;padding:0 4px}
+.aform input[type=email],.aform input[type=password]{width:100%;min-height:49px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit}
+.aform .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.codein{font-size:1.6rem!important;letter-spacing:8px;text-align:center}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);margin:12px 0}.or:before,.or:after{content:"";flex:1;border-top:1px solid var(--line)}
+.linkbtn.strong{color:var(--green);font-weight:700;text-decoration:none;font-size:1rem;padding:0}
+.ahead{display:flex;gap:12px;align-items:center}.avatar{width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-weight:800;font-size:1.4rem;overflow:hidden;flex:none}.avatar img{width:100%;height:100%;object-fit:cover}
+.pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:14px 0 4px}.pstats div{background:var(--soft);border-radius:10px;padding:8px 4px;text-align:center}.pstats b{display:block;font-size:1.1rem}.pstats span{font-size:.75rem;color:var(--muted)}
+@media(max-width:520px){#authwrap{padding:0;place-items:stretch}#auth{border-radius:0;max-height:none;height:100dvh;width:100%}}
+#auth ul{margin:8px 0 14px;padding-left:20px}#auth li{margin:4px 0}
 #gbtn{min-height:48px;margin:12px 0}
 .tabs{display:flex;gap:6px;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:12px}
 .tabs button{flex:1;min-height:44px;border:0;border-radius:11px;background:transparent;color:var(--ink);font-weight:800;cursor:pointer}
@@ -344,7 +353,7 @@ const cur=()=>ui.savedIx!=null?saved[ui.savedIx]:null;
 function tripDays(e){return Math.max(1,(e.plan.days||[]).length)}
 function season(e){if(!e.A.when)return "mixed";const m=parse(e.A.when).getMonth()+1,pl=findPlace((e.plan.to&&e.plan.to.label)||e.A.to)||findPlace(e.A.to),lat=pl?pl.lat:35;
   if((m===12||m<=2)&&lat>32||(m===3||m===11)&&lat>38)return "cold";if(m>=5&&m<=9&&lat<38||m>=6&&m<=8)return "hot";return "mild"}
-function defaultTravelers(e){const w=e.A.who||"couple";if(w==="solo")return[{name:"",age:35}];if(w==="family")return[{name:"",age:35},{name:"",age:35},{name:"",age:8}];if(w==="friends")return[{name:"",age:30},{name:"",age:30},{name:"",age:30},{name:"",age:30}];if(w==="seniors")return[{name:"",age:68},{name:"",age:68}];return[{name:"",age:35},{name:"",age:35}]}
+function defaultTravelers(e){const pt=me&&me.profile&&me.profile.travelers;if(pt&&pt.length)return pt.map(t=>({name:t.name||"",age:t.age}));const w=e.A.who||"couple";if(w==="solo")return[{name:"",age:35}];if(w==="family")return[{name:"",age:35},{name:"",age:35},{name:"",age:8}];if(w==="friends")return[{name:"",age:30},{name:"",age:30},{name:"",age:30},{name:"",age:30}];if(w==="seniors")return[{name:"",age:68},{name:"",age:68}];return[{name:"",age:35},{name:"",age:35}]}
 function buildPack(e,travelers,diet){
   const n=travelers.length,ages=travelers.map(t=>+t.age||0),babies=ages.filter(a=>a<3).length,kids=ages.filter(a=>a>=3&&a<=12).length,teens=ages.filter(a=>a>=13&&a<=17).length,seniors=ages.filter(a=>a>=65).length;
   const days=tripDays(e),cl=Math.min(days+1,7),sea=season(e),pets=!!e.A.pets,D=new Set(diet),out=[];
@@ -545,7 +554,7 @@ function home(){const pf=me&&prefs&&prefs.from&&prefs.who;return `
   <div class="q hero"><img alt="MileMarker logo" src="${LOGO}"><div><h2 style="font-size:clamp(1.9rem,6vw,3rem)">Plan your RV trip</h2><p class="hint">Answer a few quick questions. We'll plan each driving day, your breaks and places to stay — matched to who's coming along.</p><button class="btn" data-go="0">Plan a trip</button></div></div>
   ${saved.length?`<h3 class="sec">Your trips</h3>${saved.map((t,i)=>{const ps=t.pack?packStats(t.pack):null,tot=t.plan.days.reduce((a,d)=>a+d.miles,0);return `<div class="savedc"><details class="saved"><summary><b>${esc(String(t.A.from).split(",")[0])} → ${esc(String(t.A.to).split(",")[0])}</b><div class="meta">${t.plan.days.length} day${t.plan.days.length===1?"":"s"} · ${tot.toLocaleString()} miles${t.A.when?" · leaves "+fmtD(t.A.when):""}${ps?` · packed ${ps.done}/${ps.total}`:""}</div><span class="peek">Quick look at the days ▾</span></summary>
     <ol class="tl">${t.plan.days.map((d,k)=>`<li><time>Day ${k+1}</time><span>${t.A.when?esc(fmtD(addDays(t.A.when,k)))+" · ":""}${esc(d.from)} → ${esc(d.to)} · ${d.miles} mi${d.stays&&d.stays[0]?` · stay: ${esc(d.stays[0].name)}`:""}</span></li>`).join("")}</ol>
-    </details>${(()=>{const ad=activeDrive(),live=ad&&ad.t===t,nx=t.plan.days.findIndex(d=>!(d.log&&d.log.end));return nx<0?`<p class="meta" style="margin:8px 0 0">🏁 Trip complete</p>`:`<button class="btn startbtn" data-homestart="${i}">${live?`🚐 Continue day ${ad.i+1}`:nx===0?"▶ Start trip":`▶ Start day ${nx+1}`}</button>`})()}<div class="row tripbtns"><button class="btn ghost sm" data-edittrip="${i}">✎ Edit trip</button><button class="btn sm" data-open="${i}">View itinerary</button><button class="btn ghost sm" data-openpack="${i}">${t.pack?`Packing · ${ps.total?Math.round(ps.done/ps.total*100):0}%`:"Packing list"}</button></div>${ui.delAskTrip===i?`<div class="delask" role="alert"><span>Delete this trip, its packing list and drive log? This can't be undone.</span><div class="row" style="margin:6px 0 0"><button class="btn sm danger" data-deltrip="${i}">Yes, delete</button><button class="btn ghost sm" data-delno="1">Keep it</button></div></div>`:`<button class="linkbtn" data-delask="${i}">🗑 Delete trip</button>`}</div>`}).join("")}`:""}`}
+    </details>${(()=>{const ad=activeDrive(),live=ad&&ad.t===t,nx=t.plan.days.findIndex(d=>!(d.log&&d.log.end));return nx<0?`<p class="meta" style="margin:8px 0 0">🏁 Trip complete</p>`:`<button class="btn startbtn" data-homestart="${i}">${live?`🚐 Continue day ${ad.i+1}`:nx===0?"▶ Start trip":`▶ Start day ${nx+1}`}</button>`})()}<div class="row tripbtns"><button class="btn ghost sm" data-edittrip="${i}">✎ Edit trip</button><button class="btn sm" data-open="${i}">View itinerary</button><button class="btn ghost sm" data-openpack="${i}">${t.pack?`Packing · ${ps.total?Math.round(ps.done/ps.total*100):0}%`:"Packing list"}</button></div>${ui.delAskTrip===i?`<div class="delask" role="alert"><span>Delete this trip, its packing list and drive log? This can't be undone.</span><div class="row" style="margin:6px 0 0"><button class="btn sm danger" data-deltrip="${i}">Yes, delete</button><button class="btn ghost sm" data-tdelno="1">Keep it</button></div></div>`:`<button class="linkbtn" data-tdelask="${i}">🗑 Delete trip</button>`}</div>`}).join("")}`:""}`}
 function question(){const k=flow[step],n=step+1,last=step===flow.length-1;let body="",ok=true;
   if(k==="to"){body=`<h2>Where do you want to go?</h2><p class="hint">Type a full address, a city, or a park.</p><input type="text" id="inp" list="pl" autocomplete="off" value="${esc(A.to)}" placeholder="e.g. Great Smoky Mountains NP, TN"><datalist id="pl">${PLACES.map(p=>`<option value="${esc(p[0])}">`).join("")}</datalist><div class="chips">${POPULAR.map(p=>`<button class="chip" data-fill="${esc(p)}">${esc(p.replace(" NP"," National Park").split(",")[0])}</button>`).join("")}</div>`;ok=!!A.to.trim()}
   if(k==="from"){body=`<h2>Where are you starting from?</h2><p class="hint">Your home address, campground or city.</p><input type="text" id="inp" list="pl" autocomplete="off" value="${esc(A.from)}" placeholder="e.g. 123 Main St, Tampa, FL"><datalist id="pl">${PLACES.map(p=>`<option value="${esc(p[0])}">`).join("")}</datalist>`;ok=!!A.from.trim()}
@@ -598,7 +607,8 @@ let ui={savedIx:null,edit:null,nDays:null,stayBusy:null};
 /* ===== accounts: sign in, saved history, personalization ===== */
 let me=null,prefs=null,cdb=null,authErr="",authBusy=false,pendingChat=false,delAsk=false;
 let TOKEN="";try{TOKEN=localStorage.getItem("mm-token")||""}catch(e){}
-const canGoogle=()=>!!(AI_ENDPOINT&&GOOGLE_CLIENT_ID);
+const canGoogle=()=>!!(AI_ENDPOINT&&GOOGLE_CLIENT_ID);const canAccount=()=>!!AI_ENDPOINT;
+let authView="login",authEmail="",authPurpose="confirm",profDraft=null;
 const apiPath=p=>p.replace(/^\/trips\/([a-z0-9]+)$/,"/trips?id=$1");
 async function api(path,opt={}){const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+apiPath(path),{...opt,headers:{"content-type":"application/json",...(TOKEN?{authorization:"Bearer "+TOKEN}:{})}});if(r.status===401){signOutLocal();throw{code:"auth"}}if(!r.ok)throw{code:"http_"+r.status};return r.status===204?null:r.json()}
 const ucol=()=>cdb.collection("data/users/"+me.id);
@@ -611,46 +621,105 @@ const Store={
   saveTrip(e){return queue(async()=>{if(me.via==="claude")await ucol().doc("t_"+e.id).set({entry:plain(e)});else await api("/trips/"+e.id,{method:"PUT",body:JSON.stringify({data:e})})})},
   async msgs(){if(me.via==="claude"){const d=await ucol().doc("chat").get();return d.exists?plain(d.data().messages||[]):[]}const r=await api("/messages");return r.messages||[]},
   addMsgs(arr){return queue(async()=>{if(me.via==="claude"){const ref=ucol().doc("chat"),d=await ref.get();const m=(d.exists?plain(d.data().messages||[]):[]).concat(arr).slice(-80);await ref.set({messages:m})}else await api("/messages",{method:"POST",body:JSON.stringify({messages:arr})})})},
+  saveProfile(name,profile){if(me.via==="claude")return queue(()=>ucol().doc("me").set({name,profile}));return api("/profile",{method:"PUT",body:JSON.stringify({name,profile})})},
+  async profile(){if(me.via==="claude"){const d=await ucol().doc("me").get();return d.exists?plain(d.data()):{}}return {name:me.name,profile:me.profile||{}}},
   deleteTrip(id){return queue(async()=>{if(me.via==="claude")await ucol().doc("t_"+id).delete();else await api("/trips/"+id,{method:"DELETE"})})},
   deleteAll(){return queue(async()=>{if(me.via==="claude"){const sn=await ucol().get();for(const d of sn.docs)await ucol().doc(d.id).delete()}else await api("/account",{method:"DELETE"})})}};
 function applyPrefs(){if(!prefs)return;for(const k of ["from","who","pets","drive","driveCustom","breaks"])if(prefs[k]!=null&&prefs[k]!=="")A[k]=prefs[k]}
 function rememberPrefs(){const p={from:A.from,who:A.who,pets:!!A.pets,drive:A.drive,driveCustom:A.driveCustom||"",breaks:A.breaks};prefs=p;if(me)Store.setPrefs(p).catch(()=>{})}
-async function afterLogin(){const localP=prefs;try{prefs=await Store.prefs()}catch(e){prefs={}}if((!prefs||!prefs.from)&&localP&&localP.from){prefs=localP;Store.setPrefs(localP).catch(()=>{})}
+async function afterLogin(){try{const pr=await Store.profile();if(pr){if(pr.name)me.name=pr.name;me.profile=pr.profile||{}}}catch(e){me.profile=me.profile||{}}if(me.profile&&me.profile.home&&!(prefs&&prefs.from)&&!A.from)A.from=me.profile.home;
+  const localP=prefs;try{prefs=await Store.prefs()}catch(e){prefs={}}if((!prefs||!prefs.from)&&localP&&localP.from){prefs=localP;Store.setPrefs(localP).catch(()=>{})}
   try{const ts=await Store.trips(),ids=new Set(ts.map(t=>t.id));for(const t of saved){if(!t.id)t.id=uid();if(!ids.has(t.id)){ts.push(t);Store.saveTrip(t).catch(()=>{})}}saved=ts.sort((a,b)=>(b.at||0)-(a.at||0));persist()}catch(e){}
   try{const m=await Store.msgs();chat=m.map(x=>({r:x.r==="u"||x.role==="u"?"u":"b",t:String(x.t||x.text||"")})).filter(x=>x.t)}catch(e){}
   renderAcct();if(!plan&&step<0&&!busy)render()}
-function signOutLocal(){TOKEN="";try{localStorage.removeItem("mm-token")}catch(e){}if(me&&me.via==="google"){me=null;prefs=null;chat=[];saved=[];persist();renderAcct();if(!$("#chat").hidden)closeChat()}}
-function renderAcct(){const b=$("#acctbtn");if(!(canGoogle()||me)){b.hidden=true;return}b.hidden=false;
+function signOutLocal(){TOKEN="";try{localStorage.removeItem("mm-token")}catch(e){}if(me&&me.via==="server"){me=null;prefs=null;chat=[];saved=[];persist();renderAcct();if(!$("#chat").hidden)closeChat()}}
+function renderAcct(){const b=$("#acctbtn");if(!(canAccount()||me)){b.hidden=true;return}b.hidden=false;
   if(me){b.innerHTML="";const img=document.createElement("img");img.alt="";if(me.picture)img.src=me.picture;else img.style.display="none";const sp=document.createElement("span");sp.textContent=me.name?me.name.split(" ")[0]:"Account";b.append(img,sp)}else{b.textContent="Sign in";b.style.paddingLeft="12px"}}
-function openAuth(forChat){pendingChat=!!forChat;authErr="";delAsk=false;$("#authwrap").hidden=false;renderAuth()}
+function openAuth(forChat,view){pendingChat=!!forChat;authErr="";delAsk=false;authView=view||"login";profDraft=null;$("#authwrap").hidden=false;renderAuth()}
 function closeAuth(){$("#authwrap").hidden=true;pendingChat=false}
-function renderAuth(){const el=$("#auth");
-  if(me){el.innerHTML=`<h2>Your account</h2><p class="meta" style="margin:0 0 10px">Signed in${me.via==="claude"?" with claude.ai":" with Google"}${me.email?` as <b>${esc(me.email)}</b>`:""}</p>
-    <ul><li>${saved.length} saved trip${saved.length===1?"":"s"}</li><li>${chat.filter(m=>m.r!=="s").length} chat messages remembered</li>${prefs&&prefs.from?`<li>Usual start: ${esc(prefs.from)}</li>`:""}</ul>
-    ${delAsk?`<p class="note" style="color:var(--warn)">Delete all your trips, preferences and chat history? This can't be undone.</p><div class="row"><button class="btn" style="background:var(--warn)" data-delyes="1">Delete everything</button><button class="btn ghost" data-delno="1">Cancel</button></div>`:`<div class="row">${me.via==="google"?`<button class="btn ghost" data-signout="1">Sign out</button>`:""}<button class="btn ghost" data-delask="1">Delete my data</button><button class="btn" data-closeauth="1">Done</button></div>`}`;return}
-  const why=`<ul><li>Chat with MileMarker to plan and change trips</li><li>Your trips saved on every device</li><li>Plans personalized to your past trips and usual settings</li></ul><p class="meta">We save your trips, preferences and chat history to your account to personalize your plans. You can delete them anytime.</p>`;
-  if(window.claude&&!canGoogle()){el.innerHTML=`<h2>${pendingChat?"Sign in to chat":"Sign in"}</h2>${why}<p class="note">Sign in to claude.ai to use your account here.</p><div class="row"><button class="btn" data-closeauth="1">OK</button></div>`;return}
-  if(!canGoogle()){el.innerHTML=`<h2>Sign in</h2><p class="hint">Accounts aren't set up on this site yet.</p><div class="row"><button class="btn" data-closeauth="1">OK</button></div>`;return}
-  el.innerHTML=`<h2>${pendingChat?"Sign in to chat":"Sign in or sign up"}</h2>${why}<div id="gbtn"></div>${authBusy?`<p class="meta">Signing you in…</p>`:""}${authErr?`<p class="err">${esc(authErr)}</p>`:""}<p class="meta">New here? Continuing with Google creates your free account.</p><div class="row"><button class="btn ghost" data-closeauth="1">Not now</button></div>`;
-  showGoogle()}
+const RV_TYPES=["Class A","Class B","Class C","Travel trailer","Fifth wheel","Camper van","Truck camper","Pop-up","Other"];
+function loggedStats(){let days=0,miles=0;saved.forEach(t=>((t.plan&&t.plan.days)||[]).forEach(d=>{if(d.log&&d.log.end){days++;miles+=d.miles}}));return{days,miles}}
+function renderAuth(){const el=$("#auth"),err=authErr?`<p class="err" role="alert">${esc(authErr)}</p>`:"",busyTxt=authBusy?" disabled":"";
+  if(me){const pf=profDraft||(profDraft={name:me.name||"",...JSON.parse(JSON.stringify(me.profile||{}))});pf.travelers=pf.travelers||[];const ls=loggedStats(),lr=learned();
+    el.innerHTML=`<div class="ahead"><div class="avatar">${me.picture?`<img src="${esc(me.picture)}" alt="">`:esc((pf.name||me.email||"?").trim().charAt(0).toUpperCase())}</div><div><h2 style="margin:0">${esc(pf.name||"Your profile")}</h2><p class="meta" style="margin:2px 0 0">${me.email?esc(me.email):""}${me.via==="claude"?"Signed in with claude.ai":me.provider==="google"?" · Google":me.emailVerified?" · ✓ confirmed":""}</p></div></div>
+    <div class="pstats"><div><b>${saved.length}</b><span>trips</span></div><div><b>${ls.days}</b><span>days driven</span></div><div><b>${ls.miles.toLocaleString()}</b><span>miles logged</span></div><div><b>${lr?lr.mph:"—"}</b><span>avg mph</span></div></div>
+    <form data-authform="profile" class="aform">
+      <label>Your name<input type="text" name="name" maxlength="60" value="${esc(pf.name)}" autocomplete="name"></label>
+      <label>Home base (where trips usually start)<input type="text" name="home" maxlength="120" value="${esc(pf.home||"")}" placeholder="e.g. Tampa, FL" list="pl"></label>
+      <fieldset><legend>Your RV</legend>
+        <label>Type<select name="rvType"><option value="">Choose…</option>${RV_TYPES.map(t=>`<option${pf.rvType===t?" selected":""}>${t}</option>`).join("")}</select></label>
+        <div class="two"><label>Length (ft)<input type="number" name="rvLength" min="0" max="60" inputmode="numeric" value="${esc(pf.rvLength||"")}"></label><label>Year<input type="number" name="rvYear" min="1950" max="2100" inputmode="numeric" value="${esc(pf.rvYear||"")}"></label></div>
+        <label>Nickname<input type="text" name="rvName" maxlength="60" value="${esc(pf.rvName||"")}" placeholder="e.g. The Sunseeker"></label></fieldset>
+      <fieldset><legend>Who usually travels</legend><p class="meta" style="margin:0 0 6px">We'll fill these in for packing lists.</p>
+        ${pf.travelers.map((t,i)=>`<div class="row" style="margin:0 0 6px;flex-wrap:nowrap"><input type="text" data-pfname="${i}" value="${esc(t.name)}" placeholder="Name" aria-label="Traveler ${i+1} name" style="flex:2"><input type="number" data-pfage="${i}" value="${esc(t.age)}" min="0" max="110" placeholder="Age" aria-label="Traveler ${i+1} age" style="flex:1;max-width:90px"><button type="button" class="btn ghost sm" data-pfdel="${i}" aria-label="Remove traveler ${i+1}">✕</button></div>`).join("")}
+        <button type="button" class="btn ghost sm" data-pfadd="1">+ Add a person</button></fieldset>
+      ${err}<button class="btn"${busyTxt}>${authBusy?"Saving…":"Save profile"}</button></form>
+    ${delAsk?`<p class="note" style="color:var(--warn)">Delete your account, trips, preferences and chat history? This can't be undone.</p><div class="row"><button class="btn" style="background:var(--warn)" data-delyes="1">Delete everything</button><button class="btn ghost" data-delno="1">Cancel</button></div>`:`<div class="row">${me.via==="server"?`<button class="btn ghost" data-signout="1">Sign out</button>`:""}<button class="btn ghost" data-delask="1">Delete my account</button><button class="btn ghost" data-closeauth="1">Close</button></div>`}`;return}
+  if(window.claude&&!canAccount()){el.innerHTML=`<h2>${pendingChat?"Sign in to chat":"Sign in"}</h2><p class="note">Sign in to claude.ai to use your account here.</p><div class="row"><button class="btn" data-closeauth="1">OK</button></div>`;return}
+  if(!canAccount()){el.innerHTML=`<h2>Sign in</h2><p class="hint">Accounts aren't set up on this site yet.</p><div class="row"><button class="btn" data-closeauth="1">OK</button></div>`;return}
+  const brand=`<div class="abrand"><img src="${LOGO}" alt="" width="56" height="56"><div><b>MileMarker</b><span class="meta">${pendingChat?"Sign in to chat and plan with MileMarker":"Your trips, packing lists and drive history on every device"}</span></div></div>`;
+  const google=canGoogle()&&(authView==="login"||authView==="signup")?`<div class="or"><span>or</span></div><div id="gbtn"></div>`:"";
+  const close=`<button class="linkbtn" data-closeauth="1">Not now</button>`;
+  let body="";
+  if(authView==="signup")body=`<h2>Create your account</h2><form data-authform="signup" class="aform">
+      <label>Name<input type="text" name="name" maxlength="60" autocomplete="name" required></label>
+      <label>Email<input type="email" name="email" autocomplete="email" required value="${esc(authEmail)}"></label>
+      <label>Password <span class="meta">(8+ characters)</span><input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+      ${err}<button class="btn"${busyTxt}>${authBusy?"Creating…":"Create account"}</button></form>
+      <p class="meta">We'll email you a code to confirm it's you.</p><p>Already have an account? <button class="linkbtn strong" data-aview="login">Sign in</button></p>`;
+  else if(authView==="code")body=`<h2>${authPurpose==="reset"?"Reset your password":"Check your email"}</h2><p class="hint">We sent a 6-digit code to <b>${esc(authEmail)}</b>. It expires in 15 minutes.</p>
+      <form data-authform="code" class="aform"><label>Code<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required class="codein"></label>
+      ${authPurpose==="reset"?`<label>New password <span class="meta">(8+ characters)</span><input type="password" name="password" minlength="8" autocomplete="new-password" required></label>`:""}
+      ${err}<button class="btn"${busyTxt}>${authBusy?"Checking…":authPurpose==="reset"?"Save new password":"Confirm"}</button></form>
+      <p class="meta">No email? Check spam, or <button class="linkbtn strong" data-aresend="1">send a new code</button>.</p><p><button class="linkbtn" data-aview="login">← Back to sign in</button></p>`;
+  else if(authView==="forgot")body=`<h2>Forgot your password?</h2><p class="hint">Enter your email and we'll send you a code to set a new one.</p>
+      <form data-authform="forgot" class="aform"><label>Email<input type="email" name="email" autocomplete="email" required value="${esc(authEmail)}"></label>${err}<button class="btn"${busyTxt}>${authBusy?"Sending…":"Send code"}</button></form>
+      <p><button class="linkbtn" data-aview="login">← Back to sign in</button></p>`;
+  else body=`<h2>Sign in</h2><form data-authform="login" class="aform">
+      <label>Email<input type="email" name="email" autocomplete="email" required value="${esc(authEmail)}"></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      ${err}<button class="btn"${busyTxt}>${authBusy?"Signing in…":"Sign in"}</button></form>
+      <p><button class="linkbtn" data-aview="forgot">Forgot password?</button></p><p>New to MileMarker? <button class="linkbtn strong" data-aview="signup">Create an account</button></p>`;
+  el.innerHTML=brand+body+google+`<div style="text-align:center">${close}</div>`;
+  if(google)showGoogle();const f=el.querySelector("form input");if(f&&!("ontouchstart" in window))f.focus()}
+const AUTH_ERR={bad_email:"Please enter a valid email.",weak_password:"Use at least 8 characters for your password.",exists:"There's already an account with this email. Sign in instead.",bad_login:"That email and password don't match.",wrong_code:"That code isn't right. Check the email and try again.",code_expired:"That code has expired. Send a new one.",too_many_tries:"Too many tries. Send a new code.",wait:"Please wait a minute before asking for another code.",email_not_set_up:"Email isn't set up on this site yet.",email_failed:"We couldn't send the email. Try again in a minute.",not_configured:"Accounts aren't fully set up on this site yet.",no_database:"Accounts aren't fully set up on this site yet."};
+async function loginApi(body){const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+"/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});let d={};try{d=await r.json()}catch(e){}if(!r.ok)throw{msg:AUTH_ERR[d.error]||"Something went wrong. Please try again."};return d}
+async function finishLogin(d){TOKEN=d.token;try{localStorage.setItem("mm-token",TOKEN)}catch(e){}me={...d.user,via:"server"};await afterLogin();const goChat=pendingChat;closeAuth();toast(`Welcome${me.name?", "+me.name.split(" ")[0]:""}!`);render();if(goChat)openChat()}
+async function authSubmit(kind,f){const fd=new FormData(f),v=k=>String(fd.get(k)||"").trim();authErr="";
+  if(kind==="profile"){const pf=profDraft;pf.name=v("name");pf.home=v("home");pf.rvType=v("rvType");pf.rvLength=v("rvLength");pf.rvYear=v("rvYear");pf.rvName=v("rvName");pf.travelers=(pf.travelers||[]).filter(t=>t.name||t.age!=="");
+    authBusy=true;renderAuth();try{const r=await Store.saveProfile(pf.name,{home:pf.home,rvType:pf.rvType,rvLength:pf.rvLength,rvYear:pf.rvYear,rvName:pf.rvName,travelers:pf.travelers});
+      if(r&&r.user){me={...me,...r.user,via:me.via}}else{me.name=pf.name;me.profile={home:pf.home,rvType:pf.rvType,rvLength:pf.rvLength,rvYear:pf.rvYear,rvName:pf.rvName,travelers:pf.travelers}}
+      if(pf.home&&!A.from)A.from=pf.home;profDraft=null;authBusy=false;renderAcct();renderAuth();toast("Profile saved")}catch(e){authBusy=false;authErr="Couldn't save right now. Try again.";renderAuth()}return}
+  authBusy=true;renderAuth();
+  try{if(kind==="login"){authEmail=v("email");const d=await loginApi({action:"login",email:authEmail,password:fd.get("password")});if(d.needCode){authView="code";authPurpose="confirm"}else{authBusy=false;return finishLogin(d)}}
+    else if(kind==="signup"){authEmail=v("email");const d=await loginApi({action:"signup",name:v("name"),email:authEmail,password:fd.get("password")});if(d.needCode){authView="code";authPurpose="confirm"}else{authBusy=false;return finishLogin(d)}}
+    else if(kind==="forgot"){authEmail=v("email");await loginApi({action:"forgot",email:authEmail});authView="code";authPurpose="reset"}
+    else if(kind==="code"){const d=await loginApi(authPurpose==="reset"?{action:"reset",email:authEmail,code:v("code"),password:fd.get("password")}:{action:"verify",email:authEmail,code:v("code")});authBusy=false;return finishLogin(d)}
+  }catch(e){authErr=e.msg||"Something went wrong. Please try again."}
+  authBusy=false;renderAuth()}
+document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.authform)return;e.preventDefault();authSubmit(f.dataset.authform,f)});
+document.addEventListener("input",e=>{const t=e.target;if(!profDraft||!t.closest||!t.closest("#auth"))return;if(t.dataset.pfname!==undefined)profDraft.travelers[+t.dataset.pfname].name=t.value;if(t.dataset.pfage!==undefined)profDraft.travelers[+t.dataset.pfage].age=t.value});
 function loadGIS(){return new Promise((res,rej)=>{if(window.google&&google.accounts&&google.accounts.id)return res();const x=document.createElement("script");x.src="https://accounts.google.com/gsi/client";x.async=true;x.onload=res;x.onerror=rej;document.head.appendChild(x)})}
 let gisReady=false;
 async function showGoogle(){try{await loadGIS();if(!gisReady){google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogle});gisReady=true}const box=$("#gbtn");if(box)google.accounts.id.renderButton(box,{theme:"outline",size:"large",text:"continue_with",shape:"pill",width:280})}catch(e){authErr="Couldn't load Google sign-in. Check your connection.";const box=$("#gbtn");if(box)box.innerHTML=`<p class="err">${esc(authErr)}</p>`}}
 async function onGoogle(resp){authBusy=true;authErr="";renderAuth();
   try{const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+"/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({credential:resp.credential})});if(!r.ok)throw 0;const d=await r.json();TOKEN=d.token;try{localStorage.setItem("mm-token",TOKEN)}catch(e){}
-    me={...d.user,via:"google"};await afterLogin();authBusy=false;const goChat=pendingChat;closeAuth();toast("Signed in");if(goChat)openChat();return}catch(e){authErr="Sign-in didn't work. Please try again."}
+    me={...d.user,via:"server"};await afterLogin();authBusy=false;const goChat=pendingChat;closeAuth();toast("Signed in");if(goChat)openChat();return}catch(e){authErr="Sign-in didn't work. Please try again."}
   authBusy=false;renderAuth()}
 async function initAccount(){
   if(window.claude&&claude.use){try{const[u,d]=await Promise.all([claude.use("user"),claude.use("db")]);if(u&&d){const v=await u.me();if(v&&v.id){cdb=d;me={id:v.id,name:v.name||"",picture:v.avatarUrl||"",via:"claude"};await afterLogin();return}}}catch(e){}}
-  if(TOKEN&&AI_ENDPOINT){try{const r=await api("/me");me={...r.user,via:"google"};await afterLogin()}catch(e){}}
+  if(TOKEN&&AI_ENDPOINT){try{const r=await api("/me");me={...r.user,via:"server"};await afterLogin()}catch(e){}}
   renderAcct()}
 document.addEventListener("click",async e=>{const b=e.target.closest("#auth button,#acctbtn");if(!b)return;const d=b.dataset;
   if(b.id==="acctbtn")openAuth(false);
   else if(d.closeauth)closeAuth();
+  else if(d.aview){authView=d.aview;authErr="";renderAuth()}
+  else if(d.aresend){authErr="";try{await loginApi({action:"resend",email:authEmail,purpose:authPurpose});toast("New code sent")}catch(err){authErr=err.msg}renderAuth()}
+  else if(d.pfadd||d.pfdel!==undefined){const f=$("#auth form[data-authform=profile]");if(f){const fd=new FormData(f);for(const k of ["name","home","rvType","rvLength","rvYear","rvName"])profDraft[k]=String(fd.get(k)||"")}if(d.pfadd)profDraft.travelers.push({name:"",age:""});else profDraft.travelers.splice(+d.pfdel,1);renderAuth()}
   else if(d.signout){if(window.google&&google.accounts)google.accounts.id.disableAutoSelect();signOutLocal();closeAuth();render();toast("Signed out")}
   else if(d.delask){delAsk=true;renderAuth()}
   else if(d.delno){delAsk=false;renderAuth()}
-  else if(d.delyes){try{await Store.deleteAll();chat=[];saved=[];prefs=null;persist();toast("Your data was deleted");if(me.via==="google")signOutLocal();closeAuth();render()}catch(err){authErr="Couldn't delete right now. Try again.";renderAuth()}}});
+  else if(d.delyes){try{await Store.deleteAll();chat=[];saved=[];prefs=null;persist();toast("Your data was deleted");if(me.via==="server")signOutLocal();closeAuth();render()}catch(err){authErr="Couldn't delete right now. Try again.";renderAuth()}}});
 $("#authwrap").addEventListener("click",e=>{if(e.target.id==="authwrap")closeAuth()});
 
 /* ===== chat assistant ===== */
@@ -731,8 +800,8 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
   else if(d.homestart!==undefined){const ix=+d.homestart,t=saved[ix],ad=activeDrive();A={...t.A};plan=t.plan;routeIx=0;ui.savedIx=ix;ui.askPack=false;ui.tab="plan";
     if(!(ad&&ad.t===t)){if(ad){render();toast("Finish the day you're driving first");return}const nx=t.plan.days.findIndex(d=>!(d.log&&d.log.end)),dd=t.plan.days[nx];dd.log={start:Date.now(),breaks:[],planH:dd.hours||dd.miles/SPEED,planStart:dd.start!=null?dd.start:START,notified:{}};xp+=5;saveDrive();toast(nx===0?"+5 · Trip started — drive safe!":`+5 · Day ${nx+1} started — drive safe!`)}
     render();scrollTo(0,0)}
-  else if(d.delask!==undefined){ui.delAskTrip=+d.delask;render()}
-  else if(d.delno){ui.delAskTrip=null;render()}
+  else if(d.tdelask!==undefined){ui.delAskTrip=+d.tdelask;render()}
+  else if(d.tdelno){ui.delAskTrip=null;render()}
   else if(d.deltrip!==undefined){const ix=+d.deltrip,t=saved[ix];if(!t)return;saved.splice(ix,1);ui.delAskTrip=null;if(ui.savedIx===ix)ui.savedIx=null;else if(ui.savedIx>ix)ui.savedIx--;persist();if(me&&t.id)Store.deleteTrip(t.id).catch(()=>toast("Deleted here — couldn't reach your account"));toast("Trip deleted");render()}
   else if(d.dstart!==undefined){const e=cur(),i=+d.dstart,dd=e&&e.plan.days[i];if(!dd)return;if(activeDrive()){toast("Finish the day you're driving first");return}
     dd.log={start:Date.now(),breaks:[],planH:dd.hours||dd.miles/SPEED,planStart:dd.start!=null?dd.start:START,notified:{}};ui.confirmReset=null;xp+=5;saveDrive();toast(`+5 · Day ${i+1} started — drive safe!`);render();scrollTo(0,0)}
