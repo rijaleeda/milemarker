@@ -501,5 +501,10 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("#authwrap").
 (async()=>{if(!(window.claude&&claude.use))return;try{const f=await claude.use("sample");if(f){sampleFn=f;if($("#chat").hidden)$("#chatbtn").hidden=false}}catch(e){}})();
 }
 </script>
+<script type="module">
+  // Vercel Web Analytics
+  import { inject } from 'https://cdn.jsdelivr.net/npm/@vercel/analytics@2/dist/index.js';
+  inject();
+</script>
 </body>
 </html>
