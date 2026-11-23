@@ -4,7 +4,8 @@
 //   Secret  ANTHROPIC_API_KEY               (from console.anthropic.com)
 //   Secret  SESSION_SECRET                  (any long random string, 40+ characters)
 //   Text    GOOGLE_CLIENT_ID                (your Google OAuth web client ID)
-//   Text    ALLOWED_ORIGIN                  (e.g. https://milemarkerrv.com — no trailing slash)
+//   Text    ALLOWED_ORIGIN                  (your site addresses, comma-separated, no trailing slash,
+//                                            e.g. https://rijaleeda.github.io, https://milemarker.vercel.app)
 // Routes: POST /ai, POST /auth/google, GET /me, PUT /prefs, GET /trips, PUT|DELETE /trips/:id,
 //         GET|POST /messages, DELETE /account
 
@@ -84,15 +85,17 @@ async function ai(req, env, json, uid) {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "") || "/";
+    const allowed = String(env.ALLOWED_ORIGIN || "").split(",").map(o => o.trim().replace(/\/+$/, "")).filter(Boolean);
+    const origin = req.headers.get("Origin") || "";
     const cors = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
+      "Access-Control-Allow-Origin": allowed.length ? (allowed.includes(origin) ? origin : allowed[0]) : "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "content-type, authorization",
       "Vary": "Origin",
     };
     const json = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { ...cors, "content-type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-    if (env.ALLOWED_ORIGIN && req.headers.get("Origin") !== env.ALLOWED_ORIGIN) return json({ error: "forbidden" }, 403);
+    if (allowed.length && !allowed.includes(origin)) return json({ error: "forbidden" }, 403);
 
     try {
       const uid = await readToken(env, req);

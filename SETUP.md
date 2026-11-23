@@ -25,8 +25,10 @@ You need about 30 minutes. Everything below is free.
 ## 4. The app is hosted on GitHub Pages
 The site is published from this repository at https://rijaleeda.github.io/milemarker/ . Any change to `index.html` pushed to `main` goes live in a minute or two.
 
-- In the Worker, set `ALLOWED_ORIGIN` to `https://rijaleeda.github.io` (no path, no trailing slash).
-- In Google Cloud, add `https://rijaleeda.github.io` under **Authorized JavaScript origins**.
+- In the Worker, set `ALLOWED_ORIGIN` to every address your site runs on, separated by commas, with no path and no trailing slash. Example: `https://rijaleeda.github.io, https://milemarker.vercel.app`
+- In Google Cloud, add each of those addresses under **Authorized JavaScript origins**.
+
+The site is also deployed by Vercel from this repository; every push to `main` updates both.
 
 ## 5. Test
 1. Open your site, tap **Ask MileMarker**. You should be asked to sign in.
