@@ -187,7 +187,7 @@ details.saved .tl{margin:10px 0 4px}
   <div id="sugg" class="chips"></div>
   <form id="chatform"><input id="chatin" type="text" autocomplete="off" placeholder="Ask anything about your trip…" aria-label="Message"><button class="btn sm" id="chatsend">Send</button></form>
 </section>
-<footer>MileMarker plans are estimates. Phone map apps don't know your RV's height or weight — check clearances with an RV route planner, and confirm campgrounds by phone.</footer>
+<footer>MileMarker plans are estimates. Phone map apps don't know your RV's height or weight — check clearances with an RV route planner, and confirm campgrounds by phone. <a href="privacy.html">Privacy</a></footer>
 
 <script>
 {
@@ -680,7 +680,7 @@ function renderAuth(){const el=$("#auth"),err=authErr?`<p class="err" role="aler
       <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
       ${err}<button class="btn"${busyTxt}>${authBusy?"Signing in…":"Sign in"}</button></form>
       <p><button class="linkbtn" data-aview="forgot">Forgot password?</button></p><p>New to MileMarker? <button class="linkbtn strong" data-aview="signup">Create an account</button></p>`;
-  el.innerHTML=brand+body+google+`<div style="text-align:center">${close}</div>`;
+  el.innerHTML=brand+body+google+`<p class="meta" style="text-align:center;font-size:.85rem">By continuing you agree to our <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p><div style="text-align:center">${close}</div>`;
   if(google)showGoogle();const f=el.querySelector("form input");if(f&&!("ontouchstart" in window))f.focus()}
 const AUTH_ERR={bad_email:"Please enter a valid email.",weak_password:"Use at least 8 characters for your password.",exists:"There's already an account with this email. Sign in instead.",bad_login:"That email and password don't match.",wrong_code:"That code isn't right. Check the email and try again.",code_expired:"That code has expired. Send a new one.",too_many_tries:"Too many tries. Send a new code.",wait:"Please wait a minute before asking for another code.",email_not_set_up:"Email isn't set up on this site yet.",email_failed:"We couldn't send the email. Try again in a minute.",not_configured:"Accounts aren't fully set up on this site yet.",no_database:"Accounts aren't fully set up on this site yet."};
 async function loginApi(body){const r=await fetch(AI_ENDPOINT.replace(/\/$/,"")+"/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});let d={};try{d=await r.json()}catch(e){}if(!r.ok)throw{msg:AUTH_ERR[d.error]||"Something went wrong. Please try again."};return d}
